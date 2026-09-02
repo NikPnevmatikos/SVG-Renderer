@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Every basic shape with fills, strokes, dashes, caps, joins, inline style, currentColor and group opacity. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 260" fill="none" stroke="#111827" stroke-width="3">
+  <rect x="20" y="20" width="100" height="60" fill="#fca5a5"/>
+  <rect x="140" y="20" width="100" height="60" rx="18" fill="#fdba74" stroke-dasharray="8 4"/>
+  <circle cx="310" cy="50" r="30" fill="#fde047" stroke-width="6" stroke-opacity="0.5"/>
+  <ellipse cx="70" cy="150" rx="50" ry="25" fill="#86efac" style="stroke: #065f46; stroke-width: 2"/>
+  <line x1="140" y1="120" x2="240" y2="180" stroke-linecap="round" stroke-width="10"/>
+  <polyline points="260,180 290,120 320,180 350,120 380,180" stroke-linejoin="round"/>
+  <polygon points="40,200 100,240 40,240" fill="#93c5fd" fill-opacity="0.6"/>
+  <g transform="translate(200 220) rotate(30)" color="#7c3aed">
+    <rect x="-40" y="-15" width="80" height="30" fill="currentColor" stroke="none"/>
+  </g>
+  <g opacity="0.35">
+    <circle cx="330" cy="225" r="25" fill="#1d4ed8"/>
+    <circle cx="355" cy="225" r="25" fill="#dc2626"/>
+  </g>
+</svg>

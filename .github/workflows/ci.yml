@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    name: typecheck / test / build
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: ['20', '22']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Build first: the renderer package and the example resolve core through its built dist.
+      - name: Build packages
+        run: npm run build
+
+      - name: Typecheck packages
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+
+      - name: Typecheck example
+        working-directory: example
+        run: npx tsc --noEmit

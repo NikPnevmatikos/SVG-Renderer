@@ -1,0 +1,20 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+.expo/
+.expo-shared/
+*.tsbuildinfo
+
+# Generated benchmark fixtures (run `npm run fixtures:generate`)
+fixtures/generated/
+
+# Private fixtures (client-owned drawings must never be committed)
+fixtures-private/
+
+# Editor / tool local config
+.claude/
+.vscode/
+.idea/
+*.swp

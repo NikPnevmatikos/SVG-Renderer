@@ -1,0 +1,33 @@
+{
+  "name": "svg-renderer",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Monorepo for @nikpnevmatikos/svg-core and @nikpnevmatikos/svg-renderer — a fast, correct SVG renderer for React Native",
+  "author": "NikPnevmatikos",
+  "license": "MIT",
+  "homepage": "https://github.com/NikPnevmatikos/SVG-Renderer#readme",
+  "bugs": {
+    "url": "https://github.com/NikPnevmatikos/SVG-Renderer/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NikPnevmatikos/SVG-Renderer.git"
+  },
+  "workspaces": [
+    "packages/*",
+    "example"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "npm run build -w @nikpnevmatikos/svg-core && npm run build -w @nikpnevmatikos/svg-renderer",
+    "dev:core": "npm run dev -w @nikpnevmatikos/svg-core",
+    "dev:renderer": "npm run dev -w @nikpnevmatikos/svg-renderer",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present",
+    "fixtures:generate": "node benchmarks/generate-fixtures.js",
+    "example:web": "npm run web -w example"
+  }
+}
