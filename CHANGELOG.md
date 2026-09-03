@@ -8,6 +8,18 @@ All notable changes to this project are documented here. The format follows
 
 Nothing yet.
 
+## 0.1.1 - 2026-09-03
+
+svg-renderer only; svg-core is unchanged at 0.1.0.
+
+### Added
+
+- `svg-renderer`: decorator visibility limits. `minTargetSize` hides a decoration while its element
+  is drawn smaller than that many screen pixels and fades it in as the user zooms (evaluated on the
+  UI thread for overlay decorators, at rest for in-SVG ones); `minZoom` / `maxZoom` bound it to a
+  zoom range. Ref fit and zoom calls made before the first layout are queued and applied once the
+  viewer is measured.
+
 ## 0.1.0 - 2026-09-03
 
 ### Fixed
@@ -37,12 +49,6 @@ Nothing yet.
 - `svg-renderer`: `overrides` (per-node style overrides), `viewBox` (render a region) and
   `children` (extra elements inside the root `<Svg>`) props on `<SvgRenderer>`.
 - Example: a Viewer mode with region badges, selection, fit and zoom controls.
-- `svg-renderer`: decorator visibility limits. `minTargetSize` hides a decoration while its element
-  is drawn smaller than that many screen pixels and fades it in as the user zooms (evaluated on the
-  UI thread for overlay decorators, at rest for in-SVG ones); `minZoom` / `maxZoom` bound it to a
-  zoom range. Ref fit and zoom calls made before the first layout are queued and applied once the
-  viewer is measured.
-
 - `svg-core`: CSS cascade. `<style>` stylesheets are parsed (comments, `!important`,
   at-rules skipped with warnings) and applied with correct specificity and source order on
   top of presentation attributes and below inline `style`. Selectors: type, universal, `#id`,
