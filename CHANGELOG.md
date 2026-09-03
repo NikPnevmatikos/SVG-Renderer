@@ -6,7 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## Unreleased
 
+### Fixed
+
+- `document.contentBounds` now includes stroke bands (half the stroke width, scaled by the
+  node's world transform). Fitting or cropping to the content no longer cuts the outer half of
+  edge strokes; the viewer also keeps a small slack around its rasterized region for estimated
+  text bounds and miter joins.
+
 ### Added
+
+- `svg-renderer`: `<SvgViewer>`, imported from `@nikpnevmatikos/svg-renderer/viewer`, with
+  pan, pinch and double-tap zoom driven on the UI thread, taps resolved through the core's hit
+  testing to the nearest interactive ancestor, `interactive` as selector, predicate or
+  id-to-data record, `elementStyles` for selection highlights, `decorators` anchored to
+  elements (in-SVG or fixed-size overlay), built-in zoom in / zoom out / fit controls
+  (`controls`, `renderControls`), `fitToElement` / `fitToBounds` / `fitToContent` / `zoomBy` /
+  `zoomTo` on the ref, camera clamping to zoom limits and content bounds, and a pluggable
+  backend contract. The react-native-svg backend rasterizes the whole drawing while it fits a
+  pixel budget and an overscanned viewport region beyond that, re-anchoring after each gesture
+  so zoomed content stays crisp. gesture-handler and reanimated are optional peers, loaded
+  only by the `/viewer` entry. Built-in selection: `selectionMode` (`single` toggles one
+  element, tapping it again deselects; `multiple` toggles membership), controlled or
+  uncontrolled `selection`, `onSelectionChange`, `selectedStyle`, and `select` / `deselect` /
+  `toggleSelection` / `clearSelection` / `getSelection` on the ref.
+- `svg-core`: camera math (`fitCamera`, `zoomCamera`, `composeCamera`, `chooseRenderRegion`, ...).
+- `svg-renderer`: `overrides` (per-node style overrides), `viewBox` (render a region) and
+  `children` (extra elements inside the root `<Svg>`) props on `<SvgRenderer>`.
+- Example: a Viewer mode with region badges, selection, fit and zoom controls.
 
 - `svg-core`: CSS cascade. `<style>` stylesheets are parsed (comments, `!important`,
   at-rules skipped with warnings) and applied with correct specificity and source order on

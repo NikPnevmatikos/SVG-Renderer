@@ -80,6 +80,23 @@ export {
 export type { PathParseResult } from './geometry/path';
 export { worldMatrix, nodeBBox, shapeLocalBBox, textApproxLocalBBox } from './geometry/bbox';
 export { viewBoxTransform, parsePreserveAspectRatio } from './geometry/viewport';
+export {
+  IDENTITY_CAMERA,
+  fitCamera,
+  worldToScreen,
+  screenToWorld,
+  visibleWorldRect,
+  zoomCamera,
+  panCamera,
+  clampCameraScale,
+  clampCameraToBounds,
+  composeCamera,
+  relativeCamera,
+  cameraToMatrix,
+  camerasEqual,
+  chooseRenderRegion,
+} from './geometry/camera';
+export type { Camera, Size, RenderRegion, RenderRegionOptions } from './geometry/camera';
 export { normalizeWinding, reverseSubpath, splitSubpaths, subpathSignedArea } from './geometry/winding';
 export { flattenPath } from './geometry/flatten';
 export {

@@ -80,6 +80,18 @@ describe('buildDocument', () => {
     expect(doc.contentBounds).toEqual({ x: 14, y: 22, width: 10, height: 10 });
   });
 
+  it('includes stroke bands in the content bounds', () => {
+    const doc = parseSvg(`
+      <svg viewBox="0 0 100 100">
+        <g transform="scale(2)">
+          <rect x="10" y="10" width="20" height="10" fill="none" stroke="#000" stroke-width="3"/>
+        </g>
+        <circle cx="80" cy="80" r="5"/>
+      </svg>`);
+    // Rect spans 20..60 x 20..40 in world space; the 3-unit stroke scaled by 2 adds 3 on every side.
+    expect(doc.contentBounds).toEqual({ x: 17, y: 17, width: 68, height: 68 });
+  });
+
   it('reports and ignores invalid transforms', () => {
     const doc = parseSvg('<svg><rect id="r" width="1" height="1" transform="spin(3)"/></svg>');
     expect(doc.warnings[0]?.code).toBe('invalid-transform');

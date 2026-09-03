@@ -19,8 +19,15 @@ import Svg, {
   Text,
   TSpan,
 } from 'react-native-svg';
-import { parseSvg, type PlanOptions, type SvgDocument, type SvgSource } from '@nikpnevmatikos/svg-core';
-import { planToTree, type ElementDesc, type ElementType } from './mapping';
+import {
+  parseSvg,
+  type PlanOptions,
+  type Rect as DocumentRect,
+  type SvgDocument,
+  type SvgNode,
+  type SvgSource,
+} from '@nikpnevmatikos/svg-core';
+import { planToTree, type ElementDesc, type ElementType, type StyleOverride, type TreeOptions } from './mapping';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyComponent = React.ComponentType<any>;
@@ -53,18 +60,26 @@ function resolveComponent(desc: ElementDesc): AnyComponent | null {
     : null;
 }
 
-/** Turn an element description into react-native-svg elements. Unknown passthrough elements render nothing. */
+/**
+ * Turn an element description into react-native-svg elements. Unknown passthrough elements
+ * render nothing. `extraChildren` are appended inside the root element (in-SVG decorators).
+ */
 export function renderElementTree(
   desc: ElementDesc,
-  extraProps?: Record<string, unknown>
+  extraProps?: Record<string, unknown>,
+  extraChildren?: React.ReactNode
 ): React.ReactElement | null {
   const Component = resolveComponent(desc);
   if (!Component) return null;
   const props = extraProps ? { ...desc.props, ...extraProps } : desc.props;
   let children: React.ReactNode;
   if (desc.text !== undefined) children = desc.text;
-  else if (desc.children.length > 0) {
-    children = desc.children.map((child) => renderElementTree(child)).filter((child) => child !== null);
+  else if (desc.children.length > 0 || extraChildren !== undefined) {
+    const rendered: React.ReactNode[] = desc.children
+      .map((child) => renderElementTree(child))
+      .filter((child) => child !== null);
+    if (extraChildren !== undefined) rendered.push(extraChildren);
+    children = rendered;
   }
   return React.createElement(Component, { key: desc.key, ...props }, children);
 }
@@ -140,6 +155,12 @@ export interface SvgRendererProps {
   style?: StyleProp<ViewStyle>;
   /** Forwarded to `document.plan()`. */
   planOptions?: PlanOptions;
+  /** Render only this document-space region, stretched onto `width × height`. */
+  viewBox?: DocumentRect;
+  /** Per-node style overrides, e.g. a selection highlight. Overridden nodes should be marked interactive in `planOptions`. */
+  overrides?: ReadonlyMap<SvgNode, StyleOverride>;
+  /** react-native-svg elements appended inside the root `<Svg>`, in document coordinates. */
+  children?: React.ReactNode;
   /** Called once per parsed or received document. */
   onDocument?: (document: SvgDocument) => void;
   /** Called when fetching or parsing fails. Nothing is rendered in that case. */
@@ -154,6 +175,9 @@ export function SvgRenderer({
   height,
   style,
   planOptions,
+  viewBox,
+  overrides,
+  children,
   onDocument,
   onError,
   fallback = null,
@@ -179,12 +203,14 @@ export function SvgRenderer({
   const tree = React.useMemo(() => {
     if (!document) return null;
     const plan = planOptions ? document.plan(planOptions) : document.plan();
-    const options: { width?: number | string; height?: number | string } = {};
+    const options: TreeOptions = {};
     if (width !== undefined) options.width = width;
     if (height !== undefined) options.height = height;
+    if (viewBox !== undefined) options.viewBox = viewBox;
+    if (overrides !== undefined) options.overrides = overrides;
     return planToTree(plan, document, options);
-  }, [document, planOptions, width, height]);
+  }, [document, planOptions, width, height, viewBox, overrides]);
 
   if (!tree) return <>{fallback}</>;
-  return renderElementTree(tree, style ? { style } : undefined);
+  return renderElementTree(tree, style ? { style } : undefined, children);
 }

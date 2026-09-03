@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { formatViewBox, parseSvg, type SvgDocument, type SvgNode } from '@nikpnevmatikos/svg-core';
 import { SvgRenderer } from '@nikpnevmatikos/svg-renderer';
 
 import { FIXTURES } from './fixtures';
+import { ViewerScreen } from './ViewerScreen';
 
 const now = (): number =>
   typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
@@ -28,10 +30,10 @@ function Stat({ label, value }: { label: string; value: string }): React.ReactEl
   );
 }
 
-export default function App(): React.ReactElement {
-  const [selected, setSelected] = useState(0);
-  const fixture = FIXTURES[selected] ?? FIXTURES[0]!;
+type Mode = 'gallery' | 'viewer';
 
+function GalleryScreen({ fixtureIndex }: { fixtureIndex: number }): React.ReactElement {
+  const fixture = FIXTURES[fixtureIndex] ?? FIXTURES[0]!;
   const parsed = useMemo(() => {
     const start = now();
     try {
@@ -50,34 +52,7 @@ export default function App(): React.ReactElement {
   const warnings = parsed.document?.warnings ?? [];
 
   return (
-    <View style={styles.root}>
-      <StatusBar style="dark" />
-      <View style={styles.header}>
-        <Text style={styles.title}>svg-renderer example</Text>
-        <Text style={styles.subtitle}>phase 1 · react-native-svg backend · {Platform.OS}</Text>
-      </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.tabsScroll}
-        contentContainerStyle={styles.tabs}
-      >
-        {FIXTURES.map((item, index) => {
-          const active = index === selected;
-          return (
-            <Pressable
-              key={item.name}
-              onPress={() => setSelected(index)}
-              style={[styles.tab, active && styles.tabActive]}
-              testID={`fixture-${index}`}
-            >
-              <Text style={[styles.tabText, active && styles.tabTextActive]}>{item.name}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
+    <>
       <View style={styles.canvas} testID="canvas">
         {parsed.document ? (
           <SvgRenderer source={{ document: parsed.document }} width="100%" height="100%" />
@@ -106,7 +81,62 @@ export default function App(): React.ReactElement {
           </Text>
         ))}
       </ScrollView>
-    </View>
+    </>
+  );
+}
+
+export default function App(): React.ReactElement {
+  const [selected, setSelected] = useState(0);
+  const [mode, setMode] = useState<Mode>('gallery');
+  const fixture = FIXTURES[selected] ?? FIXTURES[0]!;
+
+  return (
+    <GestureHandlerRootView style={styles.root}>
+      <StatusBar style="dark" />
+      <View style={styles.header}>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.title}>svg-renderer example</Text>
+            <Text style={styles.subtitle}>phase 2 · react-native-svg backend · {Platform.OS}</Text>
+          </View>
+          <View style={styles.modeSwitch}>
+            {(['gallery', 'viewer'] as Mode[]).map((item) => (
+              <Pressable
+                key={item}
+                onPress={() => setMode(item)}
+                style={[styles.modeButton, mode === item && styles.modeButtonActive]}
+                testID={`mode-${item}`}
+              >
+                <Text style={[styles.modeText, mode === item && styles.modeTextActive]}>{item}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabsScroll}
+        contentContainerStyle={styles.tabs}
+      >
+        {FIXTURES.map((item, index) => {
+          const active = index === selected;
+          return (
+            <Pressable
+              key={item.name}
+              onPress={() => setSelected(index)}
+              style={[styles.tab, active && styles.tabActive]}
+              testID={`fixture-${index}`}
+            >
+              <Text style={[styles.tabText, active && styles.tabTextActive]}>{item.name}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      {mode === 'gallery' ? <GalleryScreen fixtureIndex={selected} /> : <ViewerScreen fixture={fixture} />}
+    </GestureHandlerRootView>
   );
 }
 
@@ -121,6 +151,11 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   title: {
     fontSize: 20,
     fontWeight: '700',
@@ -130,6 +165,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6b7280',
     marginTop: 2,
+  },
+  modeSwitch: {
+    flexDirection: 'row',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 999,
+    padding: 3,
+  },
+  modeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  modeButtonActive: {
+    backgroundColor: '#111827',
+  },
+  modeText: {
+    fontSize: 13,
+    color: '#374151',
+  },
+  modeTextActive: {
+    color: '#ffffff',
+    fontWeight: '600',
   },
   tabsScroll: {
     flexGrow: 0,

@@ -56,9 +56,8 @@ Measured on the generated benchmark grids (Node 24, desktop, `npm run bench`):
 | Package | Purpose | Native deps |
 |---|---|---|
 | [`@nikpnevmatikos/svg-core`](./packages/core) | Parser, CSS cascade, normalizer, scene graph, render planner, geometry. Pure TypeScript, zero dependencies. Runs on React Native, web and Node. | none |
-| [`@nikpnevmatikos/svg-renderer`](./packages/react-native-svg) | `<SvgRenderer>` for React Native on top of `react-native-svg`. | `react-native-svg` |
-| `@nikpnevmatikos/svg-renderer-viewer` | Pan/zoom camera, fit-to-element, presses in SVG space, decorators. *(planned, phase 2)* | gesture-handler, reanimated |
-| `@nikpnevmatikos/svg-renderer-skia` | Skia backend for very large documents and vector-crisp zoom. *(planned, phase 2)* | `@shopify/react-native-skia` |
+| [`@nikpnevmatikos/svg-renderer`](./packages/react-native-svg) | `<SvgRenderer>` for React Native on top of `react-native-svg`. Import `@nikpnevmatikos/svg-renderer/viewer` for `<SvgViewer>`: pan/zoom camera on the UI thread, taps resolved in SVG space, selection highlights, fit-to-element, badges anchored to elements, built-in controls. | `react-native-svg`; the viewer also needs gesture-handler and reanimated (optional peers) |
+| `@nikpnevmatikos/svg-renderer/skia` | Skia backend for very large documents and vector-crisp zoom. *(planned, phase 2)* | `@shopify/react-native-skia` (optional peer) |
 
 ## Quick start
 
@@ -72,6 +71,17 @@ import { SvgRenderer } from '@nikpnevmatikos/svg-renderer';
 export function Logo({ xml }: { xml: string }) {
   return <SvgRenderer source={{ xml }} width={200} height={120} />;
 }
+```
+
+Interactive map with pan, zoom, taps and built-in controls (needs react-native-gesture-handler
+and react-native-reanimated):
+
+```tsx
+import { parseSvg } from '@nikpnevmatikos/svg-core';
+import { SvgViewer } from '@nikpnevmatikos/svg-renderer/viewer';
+
+const doc = parseSvg(xml);
+<SvgViewer document={doc} style={{ flex: 1 }} interactive=".room" onElementPress={({ node }) => open(node.id)} />
 ```
 
 Parse once and work with the document:

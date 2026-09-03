@@ -16,6 +16,7 @@ import {
   type ResolvedStyle,
   type ShapeNode,
   type SvgDocument,
+  type SvgNode,
   type TextNode,
   type TextRun,
   type XmlElement,
@@ -54,9 +55,22 @@ export interface ElementDesc {
   component?: string;
 }
 
+export type StyleOverride = Partial<Omit<ResolvedStyle, 'font'>> & { font?: Partial<ResolvedStyle['font']> };
+
 export interface TreeOptions {
   width?: number | string;
   height?: number | string;
+  /** Replace the document viewBox (a viewer renders just the visible region this way). */
+  viewBox?: { x: number; y: number; width: number; height: number };
+  /** Per-node style overrides (selection highlights). Overridden nodes must be individual plan units. */
+  overrides?: ReadonlyMap<SvgNode, StyleOverride>;
+}
+
+/** Node style with an override applied on top. */
+export function overrideStyle(style: ResolvedStyle, override: StyleOverride | undefined): ResolvedStyle {
+  if (!override) return style;
+  const { font, ...rest } = override;
+  return { ...style, ...rest, font: font ? { ...style.font, ...font } : style.font };
 }
 
 export function paintToString(paint: Paint): string {
@@ -126,8 +140,8 @@ function pointsToString(points: readonly number[]): string {
   return parts.join(' ');
 }
 
-export function shapeToDesc(node: ShapeNode, key: string): ElementDesc {
-  const props = withCommon(node, styleToProps(node.style));
+export function shapeToDesc(node: ShapeNode, key: string, override?: StyleOverride): ElementDesc {
+  const props = withCommon(node, styleToProps(overrideStyle(node.style, override)));
   const p = node.params;
   switch (p.kind) {
     case 'rect': {
@@ -172,8 +186,9 @@ function runToDesc(run: TextRun, parentStyle: ResolvedStyle, key: string): Eleme
   return { type: 'TSpan', key, props, children: [], text: run.text };
 }
 
-export function textToDesc(node: TextNode, key: string): ElementDesc {
-  const props = withCommon(node, { ...styleToProps(node.style), ...fontProps(node.style), x: node.x, y: node.y });
+export function textToDesc(node: TextNode, key: string, override?: StyleOverride): ElementDesc {
+  const style = overrideStyle(node.style, override);
+  const props = withCommon(node, { ...styleToProps(style), ...fontProps(style), x: node.x, y: node.y });
   const single = node.runs.length === 1 ? node.runs[0] : undefined;
   if (
     single &&
@@ -193,7 +208,8 @@ export function textToDesc(node: TextNode, key: string): ElementDesc {
   };
 }
 
-export function imageToDesc(node: ImageNode, key: string): ElementDesc {
+export function imageToDesc(node: ImageNode, key: string, override?: StyleOverride): ElementDesc {
+  const style = overrideStyle(node.style, override);
   const props = withCommon(node, {
     href: { uri: node.href },
     x: node.rect.x,
@@ -202,8 +218,8 @@ export function imageToDesc(node: ImageNode, key: string): ElementDesc {
     height: node.rect.height,
     preserveAspectRatio: node.preserveAspectRatio,
   });
-  if (node.style.opacity !== 1) props.opacity = node.style.opacity;
-  if (node.style.clipPath !== undefined) props.clipPath = `url(#${node.style.clipPath})`;
+  if (style.opacity !== 1) props.opacity = style.opacity;
+  if (style.clipPath !== undefined) props.clipPath = `url(#${style.clipPath})`;
   return { type: 'Image', key, props, children: [] };
 }
 
@@ -222,7 +238,12 @@ function groupBeginToDesc(unit: Extract<DrawUnit, { kind: 'group-begin' }>, key:
 }
 
 /** Append draw units as children of `container`, nesting `group-begin` / `group-end` pairs. */
-function appendUnits(container: ElementDesc, units: readonly DrawUnit[], keyPrefix: string): void {
+function appendUnits(
+  container: ElementDesc,
+  units: readonly DrawUnit[],
+  keyPrefix: string,
+  overrides?: ReadonlyMap<SvgNode, StyleOverride>
+): void {
   const stack: ElementDesc[] = [container];
   let counter = 0;
   for (const unit of units) {
@@ -239,13 +260,13 @@ function appendUnits(container: ElementDesc, units: readonly DrawUnit[], keyPref
         if (stack.length > 1) stack.pop();
         break;
       case 'shape':
-        parent.children.push(shapeToDesc(unit.node, key));
+        parent.children.push(shapeToDesc(unit.node, key, overrides?.get(unit.node)));
         break;
       case 'text':
-        parent.children.push(textToDesc(unit.node, key));
+        parent.children.push(textToDesc(unit.node, key, overrides?.get(unit.node)));
         break;
       case 'image':
-        parent.children.push(imageToDesc(unit.node, key));
+        parent.children.push(imageToDesc(unit.node, key, overrides?.get(unit.node)));
         break;
       case 'batch':
         parent.children.push({
@@ -372,14 +393,19 @@ export function defsToDesc(document: SvgDocument): ElementDesc | null {
 }
 
 export function rootProps(document: SvgDocument, options: TreeOptions): Record<string, unknown> {
-  const viewBox = document.viewBox ?? document.contentBounds;
+  const viewBox = options.viewBox ?? document.viewBox ?? document.contentBounds;
   const props: Record<string, unknown> = {
     width: options.width ?? '100%',
     height: options.height ?? '100%',
     viewBox: formatViewBox(viewBox),
   };
-  const par = document.preserveAspectRatio;
-  props.preserveAspectRatio = par.align === 'none' ? 'none' : `${par.align} ${par.meetOrSlice}`;
+  if (options.viewBox) {
+    // An explicit region maps exactly onto the given size; no letterboxing.
+    props.preserveAspectRatio = 'none';
+  } else {
+    const par = document.preserveAspectRatio;
+    props.preserveAspectRatio = par.align === 'none' ? 'none' : `${par.align} ${par.meetOrSlice}`;
+  }
   return props;
 }
 
@@ -388,6 +414,6 @@ export function planToTree(plan: RenderPlan, document: SvgDocument, options: Tre
   const root: ElementDesc = { type: 'Svg', key: 'root', props: rootProps(document, options), children: [] };
   const defs = defsToDesc(document);
   if (defs) root.children.push(defs);
-  appendUnits(root, plan.units, 'u');
+  appendUnits(root, plan.units, 'u', options.overrides);
   return root;
 }

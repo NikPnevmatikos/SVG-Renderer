@@ -71,6 +71,7 @@ document (ids, geometry, hit testing) instead of an opaque picture.
 | D4 | 2026-09-02 | Monorepo under `@nikpnevmatikos/*`, mirroring Html-Renderer (npm workspaces, tsc, jest, Expo example app, GitHub Actions). | Familiar tooling and release flow. |
 | D5 | 2026-09-02 | The project is standalone open source. No product-specific references, fixtures or adapters. | Serves the whole community; avoids biasing the API toward one consumer. |
 | D6 | 2026-09-02 | Performance-first rendering: static content is batched by paint style into few draw units; the camera runs on the UI thread; hit testing runs in JS over a spatial index; benchmarks gate releases. | The problem this library exists to solve is that per-element rendering makes phones lag past a few hundred elements. |
+| D7 | 2026-09-03 | One React Native package. The viewer ships inside `@nikpnevmatikos/svg-renderer` as the subpath `@nikpnevmatikos/svg-renderer/viewer`, and the Skia backend will be `.../skia`; gesture-handler, reanimated and Skia are optional peers loaded only by their entry. `svg-core` stays separate because it runs on Node without React Native. The viewer ships built-in zoom/fit controls, replaceable via `renderControls`. | Fewer packages to install and version; subpath entries keep icon-only apps free of native gesture dependencies; users expect a map-like component to come with its controls. |
 
 ---
 
@@ -156,13 +157,11 @@ across editor dialects. We do not compete on drawing primitives.
 
 | Directory | npm name | Contents | Peer deps |
 |---|---|---|---|
-| `packages/core` | `@nikpnevmatikos/svg-core` | Parser, CSS cascade, normalizer, scene graph, render planner, geometry, input adapters, CLI. **Zero runtime dependencies.** | none |
-| `packages/react-native-svg` | `@nikpnevmatikos/svg-renderer` | The main RN package: `<SvgRenderer>` on top of `react-native-svg`, draws render plans, style overrides, static/dynamic split. Re-exports core. | `react`, `react-native`, `react-native-svg` |
-| `packages/viewer` | `@nikpnevmatikos/svg-renderer-viewer` | `<SvgViewer>`: camera, gestures, fit-to-element, decorators, hit testing wiring. Backend-agnostic. | `react-native-gesture-handler`, `react-native-reanimated` |
-| `packages/skia` | `@nikpnevmatikos/svg-renderer-skia` | Skia backend: draw units to Skia paths, picture baking, camera matrix on the UI thread. | `@shopify/react-native-skia` |
-| `example` | private | Expo app: fixture gallery, floor-plan demo, benchmarks screen comparing backends. | — |
+| `packages/core` | `@nikpnevmatikos/svg-core` | Parser, CSS cascade, normalizer, scene graph, render planner, geometry, input adapters, CLI. **Zero runtime dependencies.** Runs on Node. | none |
+| `packages/react-native-svg` | `@nikpnevmatikos/svg-renderer` | The RN package. Main entry: `<SvgRenderer>` on top of `react-native-svg`, draws render plans, style overrides. `./viewer` entry: `<SvgViewer>` with camera, gestures, hit testing wiring, decorators, built-in controls. `./skia` entry (planned): Skia backend. Re-exports core. | `react`, `react-native`, `react-native-svg`; optional: `react-native-gesture-handler`, `react-native-reanimated`, `@shopify/react-native-skia` |
+| `example` | private | Expo app: fixture gallery, viewer mode, benchmarks screen comparing backends. | — |
 
-Naming follows the Html-Renderer pattern (`html-renderer`, `html-renderer-video`).
+Subpath entries (decision D7) keep the dependency contract visible without multiplying packages: importing `/viewer` is what pulls in the gesture libraries, nothing else does.
 
 ### 6.2 Input adapters
 
@@ -516,9 +515,10 @@ SVG-Renderer/
 ├─ docs/DESIGN.md          # this file
 ├─ packages/
 │  ├─ core/                # @nikpnevmatikos/svg-core
-│  ├─ react-native-svg/    # @nikpnevmatikos/svg-renderer
-│  ├─ viewer/              # @nikpnevmatikos/svg-renderer-viewer
-│  └─ skia/                # @nikpnevmatikos/svg-renderer-skia
+│  └─ react-native-svg/    # @nikpnevmatikos/svg-renderer
+│     ├─ src/              #   main entry: SvgRenderer + mapping
+│     ├─ src/viewer/       #   ./viewer entry: SvgViewer, controls, backends
+│     └─ viewer/           #   folder stub so `.../svg-renderer/viewer` resolves without `exports` support
 ├─ fixtures/               # synthetic + open-licensed corpus
 ├─ benchmarks/             # Node perf tests and fixture generators
 └─ example/                # Expo app: gallery, floor-plan demo, benchmarks
@@ -542,7 +542,7 @@ than one package changes per release.
 |---|---|---|
 | **P0 Foundation** — *scaffold done 2026-09-02* | Monorepo scaffold, CI, example app, this document, fixture generators. Shipped with a thin vertical slice of the core (tokenizer, geometry, presentation-attribute cascade, builder, pass-through planner) so the pipeline runs end to end. | `npm test` green; example renders a hard-coded SVG through the RNSVG backend on both platforms. *Status: tests green, verified on web and on iPhone via Expo Go; Android still to be checked.* |
 | **P1 Core** — *done 2026-09-02* | Tokenizer, CSS cascade, normalization passes, geometry, planner with style batching, IR (de)serialization, CLI, round-trip harness, fixture corpus v1, Node perf tests. | All fixtures round-trip within tolerance, batched and unbatched; a 1k-element CSS-class export plans to under 50 draw units; medium-tier parse budget met. *Status: all eight synthetic fixtures pass the resvg round-trip both normalized and batched; the 1k grid plans to 8 units; 1k/10k/50k grids parse in 5/21/72 ms and plan in 3/38/191 ms on desktop Node.* |
-| **P2 Backends + viewer** | RNSVG adapter, Skia adapter (recommended in this phase, see open question 2), camera, presses in SVG space, overrides, decorators, fit-to-element, benchmarks screen. | Medium tier meets all budgets on both backends; large tier meets budgets on Skia. |
+| **P2 Backends + viewer** — *in progress* | RNSVG adapter, Skia adapter (recommended in this phase, see open question 2), camera, presses in SVG space, overrides, decorators, fit-to-element, benchmarks screen. | Medium tier meets all budgets on both backends; large tier meets budgets on Skia. *Status: viewer package and react-native-svg adapter implemented (camera, taps, overrides, decorators, fit, region re-anchoring); Skia adapter and benchmarks screen pending.* |
 | **P3 First production integration** | Dogfood in a real app with a floor-plan use case; fix what reality finds. | Shipped in production; no app-side SVG rendering code left. |
 | **P4 Scale** | Culling/LOD, picture/tile caching, async parsing polish, web backend decision. | Large tier meets budgets on RNSVG; huge tier usable on Skia. |
 | **P5 1.0** | Docs, API freeze, contribution guide, issue templates, published benchmarks. | Semver 1.0 on npm for core, renderer, viewer, skia. |

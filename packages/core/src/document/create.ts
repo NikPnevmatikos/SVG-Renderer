@@ -48,8 +48,9 @@ export function indexIds(root: GroupNode): Map<string, SvgNode> {
 export function createDocument(parts: DocumentParts): SvgDocument {
   const { viewBox, width, height, root, defs, warnings, byId } = parts;
 
-  // Leaves in paint order with their world bounds (stroke bands included), for content
-  // bounds now and for the spatial index used by elementsAt later.
+  // Leaves in paint order with their painted world bounds (stroke bands included), for the
+  // content bounds and for the spatial index used by elementsAt later. Strokes must count:
+  // a viewer that fits or crops to the content would otherwise cut half of every outer stroke.
   const leaves: { item: SvgNode; box: Rect }[] = [];
   const bounds = { value: null as Rect | null };
   const visitLeaves = (node: SvgNode): void => {
@@ -58,14 +59,14 @@ export function createDocument(parts: DocumentParts): SvgDocument {
       return;
     }
     const box = nodeBBox(node, 'world');
-    bounds.value = unionRects(bounds.value, box);
-    if (box && node.style.visibility === 'visible') {
-      const halfStroke =
-        node.kind === 'shape' && node.style.stroke.type !== 'none'
-          ? (node.style.strokeWidth / 2) * scaleFactor(worldMatrix(node))
-          : 0;
-      leaves.push({ item: node, box: halfStroke > 0 ? expandRect(box, halfStroke) : box });
-    }
+    if (!box) return;
+    const halfStroke =
+      node.kind === 'shape' && node.style.stroke.type !== 'none'
+        ? (node.style.strokeWidth / 2) * scaleFactor(worldMatrix(node))
+        : 0;
+    const painted = halfStroke > 0 ? expandRect(box, halfStroke) : box;
+    bounds.value = unionRects(bounds.value, painted);
+    if (node.style.visibility === 'visible') leaves.push({ item: node, box: painted });
   };
   visitLeaves(root);
   const contentBounds: Rect = bounds.value ?? viewBox ?? { x: 0, y: 0, width: width ?? 0, height: height ?? 0 };
