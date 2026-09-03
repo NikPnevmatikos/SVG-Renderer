@@ -2,8 +2,8 @@
 
 Status: draft v2 · Date: 2026-09-02 · Owner: Nik Pnevmatikos
 
-A general-purpose, standalone SVG library for React Native, published on npm under
-`@nikpnevmatikos`. This document captures the plan and the reasoning behind it. It is
+A general-purpose, standalone SVG library for React Native, published on npm as
+`svg-core` and `svg-renderer`. This document captures the plan and the reasoning behind it. It is
 meant to be edited as decisions evolve.
 
 ---
@@ -71,7 +71,8 @@ document (ids, geometry, hit testing) instead of an opaque picture.
 | D4 | 2026-09-02 | Monorepo under `@nikpnevmatikos/*`, mirroring Html-Renderer (npm workspaces, tsc, jest, Expo example app, GitHub Actions). | Familiar tooling and release flow. |
 | D5 | 2026-09-02 | The project is standalone open source. No product-specific references, fixtures or adapters. | Serves the whole community; avoids biasing the API toward one consumer. |
 | D6 | 2026-09-02 | Performance-first rendering: static content is batched by paint style into few draw units; the camera runs on the UI thread; hit testing runs in JS over a spatial index; benchmarks gate releases. | The problem this library exists to solve is that per-element rendering makes phones lag past a few hundred elements. |
-| D7 | 2026-09-03 | One React Native package. The viewer ships inside `@nikpnevmatikos/svg-renderer` as the subpath `@nikpnevmatikos/svg-renderer/viewer`, and the Skia backend will be `.../skia`; gesture-handler, reanimated and Skia are optional peers loaded only by their entry. `svg-core` stays separate because it runs on Node without React Native. The viewer ships built-in zoom/fit controls, replaceable via `renderControls`. | Fewer packages to install and version; subpath entries keep icon-only apps free of native gesture dependencies; users expect a map-like component to come with its controls. |
+| D7 | 2026-09-03 | One React Native package. The viewer ships inside `svg-renderer` as the subpath `svg-renderer/viewer`, and the Skia backend will be `.../skia`; gesture-handler, reanimated and Skia are optional peers loaded only by their entry. `svg-core` stays separate because it runs on Node without React Native. The viewer ships built-in zoom/fit controls, replaceable via `renderControls`. | Fewer packages to install and version; subpath entries keep icon-only apps free of native gesture dependencies; users expect a map-like component to come with its controls. |
+| D8 | 2026-09-03 | Unscoped npm names: `svg-core` and `svg-renderer` (both were free, including punctuation variants). The GitHub repository stays NikPnevmatikos/SVG-Renderer. | Short, memorable names for a standalone project; `npx svg-core inspect` reads naturally. |
 
 ---
 
@@ -157,8 +158,8 @@ across editor dialects. We do not compete on drawing primitives.
 
 | Directory | npm name | Contents | Peer deps |
 |---|---|---|---|
-| `packages/core` | `@nikpnevmatikos/svg-core` | Parser, CSS cascade, normalizer, scene graph, render planner, geometry, input adapters, CLI. **Zero runtime dependencies.** Runs on Node. | none |
-| `packages/react-native-svg` | `@nikpnevmatikos/svg-renderer` | The RN package. Main entry: `<SvgRenderer>` on top of `react-native-svg`, draws render plans, style overrides. `./viewer` entry: `<SvgViewer>` with camera, gestures, hit testing wiring, decorators, built-in controls. `./skia` entry (planned): Skia backend. Re-exports core. | `react`, `react-native`, `react-native-svg`; optional: `react-native-gesture-handler`, `react-native-reanimated`, `@shopify/react-native-skia` |
+| `packages/core` | `svg-core` | Parser, CSS cascade, normalizer, scene graph, render planner, geometry, input adapters, CLI. **Zero runtime dependencies.** Runs on Node. | none |
+| `packages/react-native-svg` | `svg-renderer` | The RN package. Main entry: `<SvgRenderer>` on top of `react-native-svg`, draws render plans, style overrides. `./viewer` entry: `<SvgViewer>` with camera, gestures, hit testing wiring, decorators, built-in controls. `./skia` entry (planned): Skia backend. Re-exports core. | `react`, `react-native`, `react-native-svg`; optional: `react-native-gesture-handler`, `react-native-reanimated`, `@shopify/react-native-skia` |
 | `example` | private | Expo app: fixture gallery, viewer mode, benchmarks screen comparing backends. | — |
 
 Subpath entries (decision D7) keep the dependency contract visible without multiplying packages: importing `/viewer` is what pulls in the gesture libraries, nothing else does.
@@ -367,9 +368,8 @@ styles, and never does hit testing.
 ## 7. Public API sketch
 
 ```tsx
-import { SvgRenderer } from '@nikpnevmatikos/svg-renderer';            // static rendering
-import { SvgViewer, type SvgViewerRef } from '@nikpnevmatikos/svg-renderer-viewer';
-import { parseSvg } from '@nikpnevmatikos/svg-core';
+import { SvgRenderer, parseSvg } from 'svg-renderer';
+import { SvgViewer, type SvgViewerRef } from 'svg-renderer/viewer';
 
 // 1. Simple: any SVG string, rendered correctly
 <SvgRenderer source={{ xml }} width="100%" height={240} />
@@ -400,10 +400,10 @@ viewer.current?.fitToElement(selectedId, { padding: 24, animated: true });
 Node/CLI:
 
 ```
-npx @nikpnevmatikos/svg-core inspect drawing.svg                    # ids, element counts, warnings, unsupported features
-npx @nikpnevmatikos/svg-core inspect drawing.svg --ids regions.json # verify every expected id exists
-npx @nikpnevmatikos/svg-core plan drawing.svg                       # draw-unit count and batching report
-npx @nikpnevmatikos/svg-core normalize drawing.svg -o drawing.ir.json
+npx svg-core inspect drawing.svg                    # ids, element counts, warnings, unsupported features
+npx svg-core inspect drawing.svg --ids regions.json # verify every expected id exists
+npx svg-core plan drawing.svg                       # draw-unit count and batching report
+npx svg-core normalize drawing.svg -o drawing.ir.json
 ```
 
 ---
@@ -514,8 +514,8 @@ SVG-Renderer/
 ├─ .github/workflows/ci.yml
 ├─ docs/DESIGN.md          # this file
 ├─ packages/
-│  ├─ core/                # @nikpnevmatikos/svg-core
-│  └─ react-native-svg/    # @nikpnevmatikos/svg-renderer
+│  ├─ core/                # svg-core
+│  └─ react-native-svg/    # svg-renderer
 │     ├─ src/              #   main entry: SvgRenderer + mapping
 │     ├─ src/viewer/       #   ./viewer entry: SvgViewer, controls, backends
 │     └─ viewer/           #   folder stub so `.../svg-renderer/viewer` resolves without `exports` support

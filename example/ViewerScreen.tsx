@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { parseSvg, type Camera, type SvgNode } from '@nikpnevmatikos/svg-core';
-import { SvgViewer, type ElementHit, type SelectionMode, type SvgViewerRef } from '@nikpnevmatikos/svg-renderer/viewer';
+import { parseSvg, type Camera, type SvgNode } from 'svg-renderer';
+import { SvgViewer, type ElementHit, type SelectionMode, type SvgViewerRef } from 'svg-renderer/viewer';
 
 import type { Fixture } from './fixtures';
 

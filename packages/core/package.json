@@ -1,6 +1,6 @@
 {
-  "name": "@nikpnevmatikos/svg-core",
-  "version": "0.0.1",
+  "name": "svg-core",
+  "version": "0.1.0",
   "description": "Dependency-free SVG parser, normalizer, scene graph, render planner and geometry engine in TypeScript. Runs on React Native, web and Node.",
   "author": "NikPnevmatikos",
   "license": "MIT",
@@ -21,9 +21,6 @@
     "README.md",
     "LICENSE"
   ],
-  "publishConfig": {
-    "access": "public"
-  },
   "engines": {
     "node": ">=20"
   },
@@ -33,7 +30,8 @@
     "dev": "tsc --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "prepublishOnly": "npm run clean && npm run build"
   },
   "jest": {
     "testEnvironment": "node",

@@ -20,7 +20,7 @@ import {
   type TextNode,
   type TextRun,
   type XmlElement,
-} from '@nikpnevmatikos/svg-core';
+} from 'svg-core';
 
 export type ElementType =
   | 'Svg'

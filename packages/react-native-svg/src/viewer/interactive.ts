@@ -1,4 +1,4 @@
-import { findAncestor, nodeBBox, type Rect, type SvgDocument, type SvgNode } from '@nikpnevmatikos/svg-core';
+import { findAncestor, nodeBBox, type Rect, type SvgDocument, type SvgNode } from 'svg-core';
 import type { StyleOverride } from '../mapping';
 import type { Decorator, InteractiveSpec, SelectionMode } from './types';
 

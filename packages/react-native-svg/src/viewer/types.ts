@@ -12,7 +12,7 @@ import type {
   Size,
   SvgDocument,
   SvgNode,
-} from '@nikpnevmatikos/svg-core';
+} from 'svg-core';
 import type { StyleOverride } from '../mapping';
 import type { ViewerControlsOptions } from './controls';
 

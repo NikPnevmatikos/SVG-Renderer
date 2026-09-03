@@ -2,8 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
-import { formatViewBox, parseSvg, type SvgDocument, type SvgNode } from '@nikpnevmatikos/svg-core';
-import { SvgRenderer } from '@nikpnevmatikos/svg-renderer';
+import { formatViewBox, parseSvg, type SvgDocument, type SvgNode } from 'svg-renderer';
+import { SvgRenderer } from 'svg-renderer';
 
 import { FIXTURES } from './fixtures';
 import { ViewerScreen } from './ViewerScreen';

@@ -26,7 +26,7 @@ import {
   type SvgDocument,
   type SvgNode,
   type SvgSource,
-} from '@nikpnevmatikos/svg-core';
+} from 'svg-core';
 import { planToTree, type ElementDesc, type ElementType, type StyleOverride, type TreeOptions } from './mapping';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

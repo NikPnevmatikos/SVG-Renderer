@@ -28,7 +28,7 @@ import {
   type Rect,
   type Size,
   type SvgNode,
-} from '@nikpnevmatikos/svg-core';
+} from 'svg-core';
 import { ReactNativeSvgBackend } from './backends/reactNativeSvg';
 import { ViewerControls } from './controls';
 import {

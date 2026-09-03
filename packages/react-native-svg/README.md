@@ -1,16 +1,16 @@
-# @nikpnevmatikos/svg-renderer
+# svg-renderer
 
 Render real-world SVG in React Native through `react-native-svg`, with the parsing, CSS
 cascade, normalization, style batching and geometry of
-[`@nikpnevmatikos/svg-core`](../core) in front of it, and a pan/zoom viewer with taps
+[`svg-core`](https://github.com/NikPnevmatikos/SVG-Renderer/tree/main/packages/core) in front of it, and a pan/zoom viewer with taps
 resolved in SVG space, selection highlights, badges and built-in controls.
 
-> Pre-alpha. See the [design document](../../docs/DESIGN.md) for scope and roadmap.
+> Pre-alpha. See the [design document](https://github.com/NikPnevmatikos/SVG-Renderer/blob/main/docs/DESIGN.md) for scope and roadmap.
 
 ## Install
 
 ```bash
-npm install @nikpnevmatikos/svg-renderer react-native-svg
+npm install svg-renderer react-native-svg
 ```
 
 For the viewer, add the gesture libraries (already present in most Expo apps):
@@ -21,10 +21,13 @@ npm install react-native-gesture-handler react-native-reanimated
 
 They are optional peers: apps that only render SVG never load them.
 
+`svg-renderer` re-exports the whole `svg-core` API, so a React Native app needs only this package.
+Install [`svg-core`](https://github.com/NikPnevmatikos/SVG-Renderer/tree/main/packages/core) on its own for Node, servers or the CLI.
+
 ## Rendering
 
 ```tsx
-import { SvgRenderer } from '@nikpnevmatikos/svg-renderer';
+import { SvgRenderer } from 'svg-renderer';
 
 <SvgRenderer source={{ xml }} width="100%" height={240} />
 <SvgRenderer source={{ uri: 'https://example.com/plan.svg' }} onDocument={(doc) => console.log(doc.warnings)} />
@@ -33,7 +36,7 @@ import { SvgRenderer } from '@nikpnevmatikos/svg-renderer';
 Parse once, render many times:
 
 ```tsx
-import { parseSvg } from '@nikpnevmatikos/svg-core';
+import { parseSvg } from 'svg-renderer';
 
 const doc = useMemo(() => parseSvg(xml), [xml]);
 <SvgRenderer source={{ document: doc }} />
@@ -56,8 +59,8 @@ const doc = useMemo(() => parseSvg(xml), [xml]);
 
 ```tsx
 import { useMemo, useRef, useState } from 'react';
-import { parseSvg } from '@nikpnevmatikos/svg-core';
-import { SvgViewer, type SvgViewerRef } from '@nikpnevmatikos/svg-renderer/viewer';
+import { parseSvg } from 'svg-renderer';
+import { SvgViewer, type SvgViewerRef } from 'svg-renderer/viewer';
 
 export function FloorPlan({ xml, regions }: { xml: string; regions: Record<string, { name: string }> }) {
   const document = useMemo(() => parseSvg(xml), [xml]);

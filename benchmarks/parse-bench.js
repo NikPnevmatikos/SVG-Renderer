@@ -9,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const { performance } = require('perf_hooks');
-const core = require('@nikpnevmatikos/svg-core');
+const core = require('svg-core');
 
 const generatedDir = path.join(__dirname, '..', 'fixtures', 'generated');
 const files = process.argv.slice(2);

@@ -1,14 +1,14 @@
-# @nikpnevmatikos/svg-core
+# svg-core
 
 Dependency-free SVG parser, normalizer, scene graph, render planner and geometry engine in
 TypeScript. Runs on React Native, web and Node. This is the engine behind
-[`@nikpnevmatikos/svg-renderer`](../react-native-svg); it has no React or native code and can
+[`svg-renderer`](https://github.com/NikPnevmatikos/SVG-Renderer/tree/main/packages/react-native-svg); it has no React or native code and can
 be used on its own to inspect, measure, hit-test or pre-process SVG documents.
 
-> Pre-alpha. See the [design document](../../docs/DESIGN.md) for scope and roadmap.
+> Pre-alpha. See the [design document](https://github.com/NikPnevmatikos/SVG-Renderer/blob/main/docs/DESIGN.md) for scope and roadmap.
 
 ```ts
-import { parseSvg, nodeBBox, toSvgString, serializeDocument, deserializeDocument } from '@nikpnevmatikos/svg-core';
+import { parseSvg, nodeBBox, toSvgString, serializeDocument, deserializeDocument } from 'svg-core';
 
 const doc = parseSvg(xml);
 
@@ -56,9 +56,9 @@ beyond passthrough, animation.
 ## Command line
 
 ```bash
-npx @nikpnevmatikos/svg-core inspect drawing.svg [--ids ids.json] [--json]
-npx @nikpnevmatikos/svg-core plan drawing.svg [--no-batching] [--json]
-npx @nikpnevmatikos/svg-core normalize drawing.svg [--ir | --plan] [--precision 3] [-o out.svg]
+npx svg-core inspect drawing.svg [--ids ids.json] [--json]
+npx svg-core plan drawing.svg [--no-batching] [--json]
+npx svg-core normalize drawing.svg [--ir | --plan] [--precision 3] [-o out.svg]
 ```
 
 `inspect --ids` exits with code 1 when an expected id is missing, which makes it usable as a

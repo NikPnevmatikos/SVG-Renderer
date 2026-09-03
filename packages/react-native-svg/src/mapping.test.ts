@@ -1,4 +1,4 @@
-import { createDefaultStyle, parseSvg, type PlanOptions } from '@nikpnevmatikos/svg-core';
+import { createDefaultStyle, parseSvg, type PlanOptions } from 'svg-core';
 import { matrixToTransform, paintToString, planToTree, styleToProps, type ElementDesc } from './mapping';
 
 const tree = (

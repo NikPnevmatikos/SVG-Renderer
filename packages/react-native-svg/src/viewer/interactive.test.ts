@@ -1,4 +1,4 @@
-import { parseSvg } from '@nikpnevmatikos/svg-core';
+import { parseSvg } from 'svg-core';
 import { buildOverrides, interactiveFor, nextSelection, resolveDecorators, resolveInteractive, sameSelection } from './interactive';
 
 describe('nextSelection', () => {

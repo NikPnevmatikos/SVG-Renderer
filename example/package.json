@@ -11,8 +11,8 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.15",
-    "@nikpnevmatikos/svg-core": "*",
-    "@nikpnevmatikos/svg-renderer": "*",
+    "svg-core": "*",
+    "svg-renderer": "*",
     "expo": "~57.0.19",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",

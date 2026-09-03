@@ -1,8 +1,8 @@
 {
-  "name": "svg-renderer",
+  "name": "svg-renderer-monorepo",
   "private": true,
   "version": "0.0.0",
-  "description": "Monorepo for @nikpnevmatikos/svg-core and @nikpnevmatikos/svg-renderer — a fast, correct SVG renderer for React Native",
+  "description": "Monorepo for svg-core and svg-renderer: a fast, correct SVG renderer and pan/zoom viewer for React Native",
   "author": "NikPnevmatikos",
   "license": "MIT",
   "homepage": "https://github.com/NikPnevmatikos/SVG-Renderer#readme",
@@ -21,9 +21,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "npm run build -w @nikpnevmatikos/svg-core && npm run build -w @nikpnevmatikos/svg-renderer",
-    "dev:core": "npm run dev -w @nikpnevmatikos/svg-core",
-    "dev:renderer": "npm run dev -w @nikpnevmatikos/svg-renderer",
+    "build": "npm run build -w svg-core && npm run build -w svg-renderer",
+    "dev:core": "npm run dev -w svg-core",
+    "dev:renderer": "npm run dev -w svg-renderer",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "clean": "npm run clean --workspaces --if-present",

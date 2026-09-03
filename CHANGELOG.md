@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.1.0 - 2026-09-03
+
 ### Fixed
 
 - `document.contentBounds` now includes stroke bands (half the stroke width, scaled by the
@@ -15,7 +19,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- `svg-renderer`: `<SvgViewer>`, imported from `@nikpnevmatikos/svg-renderer/viewer`, with
+- `svg-renderer`: `<SvgViewer>`, imported from `svg-renderer/viewer`, with
   pan, pinch and double-tap zoom driven on the UI thread, taps resolved through the core's hit
   testing to the nearest interactive ancestor, `interactive` as selector, predicate or
   id-to-data record, `elementStyles` for selection highlights, `decorators` anchored to
@@ -82,8 +86,8 @@ All notable changes to this project are documented here. The format follows
   Bounding-box gradient coordinates are emitted as percentages because react-native-svg
   reads plain numbers as absolute lengths.
 
-- Monorepo scaffold: `packages/core` (`@nikpnevmatikos/svg-core`),
-  `packages/react-native-svg` (`@nikpnevmatikos/svg-renderer`), Expo example app, CI.
+- Monorepo scaffold: `packages/core` (`svg-core`),
+  `packages/react-native-svg` (`svg-renderer`), Expo example app, CI.
 - `svg-core`: dependency-free XML tokenizer, transform parsing, path data parsing with exact
   bounding boxes (arcs converted to cubics), presentation-attribute and inline-style
   resolution with inheritance, document builder producing a typed scene graph, pass-through

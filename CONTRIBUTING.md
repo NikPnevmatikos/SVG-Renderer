@@ -21,8 +21,8 @@ Run the example app in the browser with `npm run example:web`, or on a device wi
 ## Project layout
 
 ```
-packages/core/               @nikpnevmatikos/svg-core        pure TypeScript, zero dependencies
-packages/react-native-svg/   @nikpnevmatikos/svg-renderer    react-native-svg backend
+packages/core/               svg-core        pure TypeScript, zero dependencies
+packages/react-native-svg/   svg-renderer    react-native-svg backend
 example/                     Expo app: fixture gallery and benchmarks
 fixtures/                    synthetic and open-licensed SVG fixtures
 benchmarks/                  fixture generators and Node performance tests

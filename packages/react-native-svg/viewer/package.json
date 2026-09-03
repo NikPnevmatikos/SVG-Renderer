@@ -1,5 +1,5 @@
 {
-  "name": "@nikpnevmatikos/svg-renderer-viewer-entry",
+  "name": "svg-renderer-viewer-entry",
   "private": true,
   "main": "../dist/viewer/index.js",
   "types": "../dist/viewer/index.d.ts",
