@@ -4,10 +4,7 @@ import type {
   ImageNode,
   Matrix,
   ParseOptions,
-  PlanOptions,
-  PreserveAspectRatio,
   Rect,
-  RenderPlan,
   ResolvedStyle,
   ShapeNode,
   ShapeParams,
@@ -20,13 +17,15 @@ import type {
 } from '../types';
 import { SvgParseError, type XmlElement } from '../xml/tokenize';
 import { IDENTITY, multiply, parseTransform, translate } from '../geometry/matrix';
-import { nodeBBox } from '../geometry/bbox';
-import { unionRects } from '../geometry/rect';
+import { parsePreserveAspectRatio, viewBoxTransform } from '../geometry/viewport';
 import { parsePathData } from '../geometry/path';
 import { isPercentage, parseLength, parseNumberList } from '../style/length';
-import { collectDeclarations, resolveStyle, type Declarations, type StyleWarn } from '../style/resolve';
-import { planDocument } from '../plan/plan';
-import { selectNodes } from './select';
+import { resolveStyle, type Declarations, type StyleWarn } from '../style/resolve';
+import { Stylesheet, cascadeDeclarations } from '../css/cascade';
+import { xmlAdapter } from '../css/adapters';
+import { extractCustomProperties, substituteVars } from '../css/vars';
+import { createDocument } from './create';
+import { buildDefs, DEF_LIKE_TAGS, isPaintServer, type DefsHost } from './defs';
 
 const SHAPE_TAGS: ReadonlySet<string> = new Set([
   'rect',
@@ -51,15 +50,27 @@ const DEF_TAGS: ReadonlySet<string> = new Set([
   'font',
   'font-face',
 ]);
-const SILENT_TAGS: ReadonlySet<string> = new Set(['metadata', 'script']);
-const ASPECT_ALIGN_RE = /^(none|x(Min|Mid|Max)Y(Min|Mid|Max))$/;
+const SILENT_TAGS: ReadonlySet<string> = new Set(['metadata', 'script', 'style']);
+const MAX_USE_DEPTH = 32;
+
+/** Inherited CSS custom properties in scope for an element. */
+type Vars = Readonly<Record<string, string>> | null;
 
 interface BuildContext {
   warnings: SvgWarning[];
   onWarning?: (warning: SvgWarning) => void;
   byId: Map<string, SvgNode>;
   defs: DefsTable;
+  /** Raw elements addressable by id for definitions: everything inside <defs> and def-like elements anywhere. */
+  defElements: Map<string, XmlElement>;
+  /** Every element with an id, for `<use>` targets. */
+  elementsById: Map<string, XmlElement>;
+  /** Ids of `<use>` targets currently being expanded, for cycle detection. */
+  useStack: string[];
+  /** While > 0, built nodes are clones and must not claim ids. */
+  suppressIds: number;
   reported: Set<string>;
+  stylesheet: Stylesheet | null;
   viewportWidth?: number;
   viewportHeight?: number;
 }
@@ -91,19 +102,30 @@ function textContent(el: XmlElement): string {
   return out;
 }
 
-function parsePreserveAspectRatio(value: string | undefined): PreserveAspectRatio {
-  const result: PreserveAspectRatio = { align: 'xMidYMid', meetOrSlice: 'meet' };
-  if (value === undefined) return result;
-  const tokens = value.trim().split(/\s+/);
-  if (tokens[0] === 'defer') tokens.shift();
-  const align = tokens[0];
-  if (align !== undefined && ASPECT_ALIGN_RE.test(align)) result.align = align;
-  if (tokens[1] === 'slice') result.meetOrSlice = 'slice';
-  return result;
+/**
+ * Conditional processing for `<switch>`: the first child that can actually be rendered wins.
+ * Children needing extensions or the Extensibility feature (draw.io's `foreignObject`
+ * branch), foreign elements and non-English `systemLanguage` alternatives are skipped.
+ */
+function switchCandidate(el: XmlElement): boolean {
+  if (el.name === 'foreignObject' || el.name.includes(':')) return false;
+  const extensions = el.attrs.requiredExtensions;
+  if (extensions !== undefined && extensions.trim().length > 0) return false;
+  const features = el.attrs.requiredFeatures;
+  if (features !== undefined && /Extensibility/.test(features)) return false;
+  const languages = el.attrs.systemLanguage;
+  if (languages !== undefined) {
+    const list = languages
+      .split(',')
+      .map((l) => l.trim().toLowerCase())
+      .filter((l) => l.length > 0);
+    if (list.length > 0 && !list.some((l) => l === 'en' || l.startsWith('en-'))) return false;
+  }
+  return true;
 }
 
 function registerId(ctx: BuildContext, node: SvgNode, id: string | undefined): void {
-  if (id === undefined || id.length === 0) return;
+  if (id === undefined || id.length === 0 || ctx.suppressIds > 0) return;
   node.id = id;
   if (ctx.byId.has(id)) {
     if (!ctx.reported.has(`id:${id}`)) {
@@ -159,29 +181,224 @@ function attrLength(
   return value;
 }
 
-function warnStylesheet(ctx: BuildContext, el: XmlElement): void {
-  warn(
-    ctx,
-    'stylesheet-unsupported',
-    '<style> stylesheets are not applied yet; elements styled through classes render with inherited or default paint',
-    'style',
-    el.attrs.id
-  );
-}
-
-function registerDefs(ctx: BuildContext, el: XmlElement): void {
-  if (el.name === 'defs') {
+/** Gather every `<style>` in document order and parse them into one stylesheet. */
+function collectStylesheet(ctx: BuildContext, root: XmlElement): void {
+  const chunks: string[] = [];
+  const visit = (el: XmlElement): void => {
     for (const child of el.children) {
       if (child.type !== 'element') continue;
-      // Design tools commonly place the stylesheet inside <defs>.
-      if (child.name === 'style') warnStylesheet(ctx, child);
-      else registerDefs(ctx, child);
+      if (child.name === 'style') {
+        const type = child.attrs.type?.trim().toLowerCase() ?? '';
+        if (type === '' || type === 'text/css') chunks.push(textContent(child));
+        else warn(ctx, 'css-unsupported', `<style type="${child.attrs.type}"> was ignored`, 'style', child.attrs.id);
+        continue;
+      }
+      visit(child);
     }
+  };
+  visit(root);
+  if (chunks.length === 0) return;
+  const { stylesheet, warnings } = Stylesheet.parse(chunks.join('\n'));
+  for (const message of warnings) warn(ctx, 'css-unsupported', message, 'style');
+  if (!stylesheet.isEmpty()) ctx.stylesheet = stylesheet;
+}
+
+/** Cascaded declarations for an element, with `var()` references substituted. */
+function declarationsFor(
+  ctx: BuildContext,
+  el: XmlElement,
+  parentVars: Vars
+): { declarations: Declarations; vars: Vars } {
+  const fromStylesheet = ctx.stylesheet ? ctx.stylesheet.collect(el, xmlAdapter) : null;
+  const declarations = cascadeDeclarations(el.attrs, fromStylesheet);
+  const own = extractCustomProperties(declarations);
+  const vars: Vars = own ? { ...(parentVars ?? {}), ...own } : parentVars;
+  if (vars) {
+    for (const name in declarations) {
+      if (name.startsWith('--')) continue;
+      const value = declarations[name];
+      if (value !== undefined && value.includes('var(')) declarations[name] = substituteVars(value, vars);
+    }
+  }
+  return { declarations, vars };
+}
+
+/** Collect every element that may be referenced by id: def-like elements anywhere and everything inside <defs>. */
+function collectDefElements(ctx: BuildContext, root: XmlElement): void {
+  const register = (el: XmlElement): void => {
+    const id = el.attrs.id;
+    if (id !== undefined && id.length > 0 && !ctx.defElements.has(id)) ctx.defElements.set(id, el);
+  };
+  const visit = (el: XmlElement, insideDefs: boolean): void => {
+    for (const child of el.children) {
+      if (child.type !== 'element' || child.name === 'style') continue;
+      const id = child.attrs.id;
+      if (id !== undefined && id.length > 0 && !ctx.elementsById.has(id)) ctx.elementsById.set(id, child);
+      if (child.name === 'defs') {
+        visit(child, true);
+        continue;
+      }
+      if (insideDefs || DEF_LIKE_TAGS.has(child.name)) register(child);
+      visit(child, insideDefs);
+    }
+  };
+  visit(root, false);
+}
+
+/**
+ * Expand `<use>`: a group carrying the use element's style and `transform × translate(x, y)`,
+ * containing a fresh build of the referenced element. Symbols get their viewBox mapped onto
+ * the use's width/height. Clones never claim ids; cycles and bad targets are reported.
+ */
+function buildUse(ctx: BuildContext, el: XmlElement, parent: GroupNode, parentVars: Vars): void {
+  const id = el.attrs.id;
+  const href = (el.attrs.href ?? el.attrs['xlink:href'])?.trim();
+  if (href === undefined || !href.startsWith('#') || href.length < 2) {
+    warn(ctx, 'unresolved-reference', '<use> without a local href was skipped', 'use', id);
     return;
   }
-  const id = el.attrs.id;
-  if (id !== undefined && id.length > 0 && ctx.defs[id] === undefined) {
-    ctx.defs[id] = { id, tag: el.name };
+  const targetId = href.slice(1);
+  const target = ctx.elementsById.get(targetId);
+  if (!target) {
+    warn(ctx, 'unresolved-reference', `<use> references "#${targetId}" which does not exist`, 'use', id);
+    return;
+  }
+  if (DEF_LIKE_TAGS.has(target.name) && target.name !== 'symbol') {
+    warn(ctx, 'unresolved-reference', `<use> references <${target.name} id="${targetId}">, which is not renderable`, 'use', id);
+    return;
+  }
+  if (ctx.useStack.includes(targetId) || ctx.useStack.length >= MAX_USE_DEPTH) {
+    warn(ctx, 'unresolved-reference', `<use> reference cycle through "#${targetId}" was skipped`, 'use', id);
+    return;
+  }
+
+  const { declarations, vars } = declarationsFor(ctx, el, parentVars);
+  if (declarations.display?.trim() === 'none') return;
+  const style = resolveStyle(declarations, parent.style, styleWarn(ctx, 'use', id));
+  let transform = parseTransformAttr(ctx, el);
+  const x = attrLength(ctx, el, 'x', 'x', style, 0) ?? 0;
+  const y = attrLength(ctx, el, 'y', 'y', style, 0) ?? 0;
+  if (x !== 0 || y !== 0) transform = multiply(transform, translate(x, y));
+
+  const group: GroupNode = {
+    kind: 'group',
+    tag: 'use',
+    classes: parseClasses(el.attrs.class),
+    transform,
+    style,
+    attrs: el.attrs,
+    parent,
+    children: [],
+  };
+  registerId(ctx, group, id);
+  parent.children.push(group);
+
+  ctx.useStack.push(targetId);
+  ctx.suppressIds++;
+  try {
+    if (target.name === 'symbol') buildSymbolInto(ctx, target, group, el, style, vars);
+    else buildElement(ctx, target, group, vars);
+  } finally {
+    ctx.suppressIds--;
+    ctx.useStack.pop();
+  }
+}
+
+function buildSymbolInto(
+  ctx: BuildContext,
+  symbol: XmlElement,
+  group: GroupNode,
+  useEl: XmlElement,
+  useStyle: ResolvedStyle,
+  parentVars: Vars
+): void {
+  const { declarations, vars } = declarationsFor(ctx, symbol, parentVars);
+  const style = resolveStyle(declarations, useStyle, styleWarn(ctx, 'symbol', symbol.attrs.id));
+  let transform: Matrix = IDENTITY;
+  const rawViewBox = symbol.attrs.viewBox;
+  if (rawViewBox !== undefined) {
+    const nums = parseNumberList(rawViewBox);
+    const [vx, vy, vw, vh] = nums;
+    if (nums.length === 4 && vx !== undefined && vy !== undefined && vw !== undefined && vh !== undefined && vw > 0 && vh > 0) {
+      const width =
+        attrLength(ctx, useEl, 'width', 'x', useStyle, null) ??
+        attrLength(ctx, symbol, 'width', 'x', style, null) ??
+        ctx.viewportWidth ??
+        vw;
+      const height =
+        attrLength(ctx, useEl, 'height', 'y', useStyle, null) ??
+        attrLength(ctx, symbol, 'height', 'y', style, null) ??
+        ctx.viewportHeight ??
+        vh;
+      transform = viewBoxTransform(
+        { x: vx, y: vy, width: vw, height: vh },
+        width,
+        height,
+        parsePreserveAspectRatio(symbol.attrs.preserveAspectRatio)
+      );
+    } else {
+      warn(ctx, 'invalid-viewbox', `Invalid viewBox "${rawViewBox}" on <symbol>; ignored`, 'symbol', symbol.attrs.id);
+    }
+  }
+  const inner: GroupNode = {
+    kind: 'group',
+    tag: 'symbol',
+    classes: parseClasses(symbol.attrs.class),
+    transform,
+    style,
+    attrs: symbol.attrs,
+    parent: group,
+    children: [],
+  };
+  group.children.push(inner);
+  buildChildren(ctx, symbol, inner, vars);
+}
+
+/**
+ * Replace references to definitions that do not exist (or are of the wrong kind) with their
+ * fallbacks, so backends never receive a dangling `url(#id)`. One warning per missing id.
+ */
+function validateReferences(ctx: BuildContext, root: GroupNode): void {
+  const missing = (id: string, what: string, tag: string, nodeId: string | undefined): void => {
+    if (ctx.reported.has(`ref:${id}`)) return;
+    ctx.reported.add(`ref:${id}`);
+    warn(ctx, 'unresolved-reference', `${what} references "#${id}" which is not defined`, tag, nodeId);
+  };
+  const fixPaint = (style: ResolvedStyle, key: 'fill' | 'stroke', tag: string, nodeId: string | undefined): void => {
+    const paint = style[key];
+    if (paint.type !== 'ref' || isPaintServer(ctx.defs[paint.id])) return;
+    missing(paint.id, `${key} paint`, tag, nodeId);
+    style[key] =
+      paint.fallback !== undefined && paint.fallback !== 'none'
+        ? { type: 'color', value: paint.fallback }
+        : { type: 'none' };
+  };
+  const fixStyle = (style: ResolvedStyle, tag: string, nodeId: string | undefined): void => {
+    fixPaint(style, 'fill', tag, nodeId);
+    fixPaint(style, 'stroke', tag, nodeId);
+    if (style.clipPath !== undefined && ctx.defs[style.clipPath]?.kind !== 'clipPath') {
+      missing(style.clipPath, 'clip-path', tag, nodeId);
+      style.clipPath = undefined;
+    }
+    for (const key of ['mask', 'filter'] as const) {
+      const id = style[key];
+      if (id === undefined) continue;
+      const def = ctx.defs[id];
+      if (def && def.kind === 'raw' && def.tag === key) continue;
+      missing(id, key, tag, nodeId);
+      style[key] = undefined;
+    }
+  };
+  const visit = (node: SvgNode): void => {
+    fixStyle(node.style, node.tag, node.id);
+    if (node.kind === 'text') {
+      for (const run of node.runs) if (run.style !== node.style) fixStyle(run.style, 'tspan', node.id);
+    }
+    if (node.kind === 'group') for (const child of node.children) visit(child);
+  };
+  visit(root);
+  for (const def of Object.values(ctx.defs)) {
+    if (def.kind === 'clipPath') visit(def.root);
   }
 }
 
@@ -285,7 +502,8 @@ function buildText(
   el: XmlElement,
   parent: GroupNode,
   style: ResolvedStyle,
-  transform: Matrix
+  transform: Matrix,
+  vars: Vars
 ): TextNode | null {
   const firstLength = (element: XmlElement, name: string, axis: Axis, elementStyle: ResolvedStyle): number | undefined => {
     const raw = element.attrs[name];
@@ -304,18 +522,18 @@ function buildText(
   };
 
   const runs: TextRun[] = [];
-  const collect = (element: XmlElement, elementStyle: ResolvedStyle): void => {
+  const collect = (element: XmlElement, elementStyle: ResolvedStyle, elementVars: Vars): void => {
     for (const child of element.children) {
       if (child.type === 'text') {
         runs.push({ text: child.value, style: elementStyle });
         continue;
       }
       if (child.name === 'tspan' || child.name === 'a') {
-        const declarations = collectDeclarations(child.attrs);
+        const { declarations, vars: childVars } = declarationsFor(ctx, child, elementVars);
         if (declarations.display?.trim() === 'none') continue;
         const childStyle = resolveStyle(declarations, elementStyle, styleWarn(ctx, child.name, child.attrs.id));
         const before = runs.length;
-        collect(child, childStyle);
+        collect(child, childStyle, childVars);
         const firstRun = runs[before];
         if (firstRun) {
           const x = firstLength(child, 'x', 'x', childStyle);
@@ -336,7 +554,7 @@ function buildText(
       }
     }
   };
-  collect(el, style);
+  collect(el, style, vars);
 
   const normalized = normalizeRuns(runs);
   if (normalized.length === 0) return null;
@@ -394,7 +612,7 @@ function buildImage(
   };
 }
 
-function buildElement(ctx: BuildContext, el: XmlElement, parent: GroupNode): void {
+function buildElement(ctx: BuildContext, el: XmlElement, parent: GroupNode, parentVars: Vars): void {
   const tag = el.name;
   const id = el.attrs.id;
 
@@ -407,21 +625,14 @@ function buildElement(ctx: BuildContext, el: XmlElement, parent: GroupNode): voi
     return;
   }
   if (tag.includes(':')) return; // editor namespaces: inkscape:, sodipodi:, ...
-  if (tag === 'style') {
-    warnStylesheet(ctx, el);
-    return;
-  }
   if (tag === 'use') {
-    warn(ctx, 'use-unsupported', '<use> is not supported yet; the referenced content is not rendered', 'use', id);
+    buildUse(ctx, el, parent, parentVars);
     return;
   }
-  if (DEF_TAGS.has(tag)) {
-    registerDefs(ctx, el);
-    return;
-  }
-  if (SILENT_TAGS.has(tag)) return;
+  if (DEF_TAGS.has(tag)) return; // collected by the definitions pre-pass, built after the tree
+  if (SILENT_TAGS.has(tag)) return; // <style> was consumed by the stylesheet pre-pass
 
-  const declarations: Declarations = collectDeclarations(el.attrs);
+  const { declarations, vars } = declarationsFor(ctx, el, parentVars);
   if (declarations.display?.trim() === 'none') return;
   const style = resolveStyle(declarations, parent.style, styleWarn(ctx, tag, id));
   let transform = parseTransformAttr(ctx, el);
@@ -446,10 +657,12 @@ function buildElement(ctx: BuildContext, el: XmlElement, parent: GroupNode): voi
     registerId(ctx, group, id);
     parent.children.push(group);
     if (tag === 'switch') {
-      const first = el.children.find((child) => child.type === 'element');
-      if (first && first.type === 'element') buildElement(ctx, first, group);
+      const chosen = el.children.find(
+        (child): child is XmlElement => child.type === 'element' && switchCandidate(child)
+      );
+      if (chosen) buildElement(ctx, chosen, group, vars);
     } else {
-      buildChildren(ctx, el, group);
+      buildChildren(ctx, el, group, vars);
     }
     return;
   }
@@ -474,7 +687,7 @@ function buildElement(ctx: BuildContext, el: XmlElement, parent: GroupNode): voi
   }
 
   if (tag === 'text') {
-    const node = buildText(ctx, el, parent, style, transform);
+    const node = buildText(ctx, el, parent, style, transform, vars);
     if (!node) return;
     registerId(ctx, node, id);
     parent.children.push(node);
@@ -495,9 +708,9 @@ function buildElement(ctx: BuildContext, el: XmlElement, parent: GroupNode): voi
   }
 }
 
-function buildChildren(ctx: BuildContext, el: XmlElement, parent: GroupNode): void {
+function buildChildren(ctx: BuildContext, el: XmlElement, parent: GroupNode, vars: Vars): void {
   for (const child of el.children) {
-    if (child.type === 'element') buildElement(ctx, child, parent);
+    if (child.type === 'element') buildElement(ctx, child, parent, vars);
   }
 }
 
@@ -510,7 +723,12 @@ export function buildDocument(rootEl: XmlElement, options: ParseOptions = {}): S
     warnings: [],
     byId: new Map(),
     defs: {},
+    defElements: new Map(),
+    elementsById: new Map(),
+    useStack: [],
+    suppressIds: 0,
     reported: new Set(),
+    stylesheet: null,
   };
   if (options.onWarning) ctx.onWarning = options.onWarning;
 
@@ -533,7 +751,11 @@ export function buildDocument(rootEl: XmlElement, options: ParseOptions = {}): S
   ctx.viewportWidth = viewBox?.width ?? width;
   ctx.viewportHeight = viewBox?.height ?? height;
 
-  const rootStyle = resolveStyle(collectDeclarations(rootEl.attrs), null, styleWarn(ctx, 'svg', rootEl.attrs.id));
+  collectStylesheet(ctx, rootEl);
+  collectDefElements(ctx, rootEl);
+
+  const { declarations: rootDeclarations, vars: rootVars } = declarationsFor(ctx, rootEl, null);
+  const rootStyle = resolveStyle(rootDeclarations, null, styleWarn(ctx, 'svg', rootEl.attrs.id));
   const root: GroupNode = {
     kind: 'group',
     tag: 'svg',
@@ -545,38 +767,29 @@ export function buildDocument(rootEl: XmlElement, options: ParseOptions = {}): S
     children: [],
   };
   registerId(ctx, root, rootEl.attrs.id);
-  buildChildren(ctx, rootEl, root);
+  buildChildren(ctx, rootEl, root, rootVars);
 
-  const bounds = { value: null as Rect | null };
-  const visitBounds = (node: SvgNode): void => {
-    if (node.kind === 'group') {
-      for (const child of node.children) visitBounds(child);
-    } else {
-      bounds.value = unionRects(bounds.value, nodeBBox(node, 'world'));
-    }
+  const host: DefsHost = {
+    defElements: ctx.defElements,
+    defs: ctx.defs,
+    viewportWidth: ctx.viewportWidth,
+    viewportHeight: ctx.viewportHeight,
+    warn: (code, message, tag, id) => warn(ctx, code, message, tag, id),
+    declarationsFor: (el) => declarationsFor(ctx, el, rootVars).declarations,
+    buildChildrenInto: (el, holder) => buildChildren(ctx, el, holder, rootVars),
+    rootStyle,
   };
-  visitBounds(root);
-  const contentBounds: Rect = bounds.value ?? viewBox ?? { x: 0, y: 0, width: width ?? 0, height: height ?? 0 };
+  buildDefs(host);
+  validateReferences(ctx, root);
 
-  let cachedPlan: RenderPlan | null = null;
-  const document: SvgDocument = {
+  return createDocument({
     viewBox,
+    width,
+    height,
     preserveAspectRatio: parsePreserveAspectRatio(rootEl.attrs.preserveAspectRatio),
     root,
     defs: ctx.defs,
-    contentBounds,
     warnings: ctx.warnings,
-    getElementById: (id: string) => ctx.byId.get(id),
-    querySelectorAll: (selector: string) => selectNodes(root, selector),
-    plan: (planOptions?: PlanOptions) => {
-      if (planOptions === undefined) {
-        if (!cachedPlan) cachedPlan = planDocument(document, {});
-        return cachedPlan;
-      }
-      return planDocument(document, planOptions);
-    },
-  };
-  if (width !== undefined) document.width = width;
-  if (height !== undefined) document.height = height;
-  return document;
+    byId: ctx.byId,
+  });
 }

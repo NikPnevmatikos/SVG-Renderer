@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Figma-style export: a clipped frame with the clipPath defined after use, evenodd paths with clip-rule, a mask applied to a group, and a gradient with gradientUnits="userSpaceOnUse". Written by hand in the shape Figma produces. -->
+<svg width="360" height="240" viewBox="0 0 360 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_1_2)">
+<rect width="360" height="240" fill="#F8FAFC"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M40 40H200V160H40V40ZM70 70V130H170V70H70Z" fill="#6366F1"/>
+<path d="M220 40C220 28.9543 228.954 20 240 20H320C331.046 20 340 28.9543 340 40V100C340 111.046 331.046 120 320 120H240C228.954 120 220 111.046 220 100V40Z" fill="url(#paint0_linear_1_2)"/>
+<g mask="url(#mask0_1_2)">
+<circle cx="120" cy="200" r="60" fill="#F97316"/>
+<rect x="60" y="180" width="200" height="40" fill="#0EA5E9"/>
+</g>
+<path d="M240 150L300 150L270 210L240 150Z" stroke="#0F172A" stroke-width="4" stroke-linejoin="round"/>
+<rect x="250" y="220" width="100" height="10" rx="5" fill="#0F172A" fill-opacity="0.2"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_1_2" x1="220" y1="20" x2="340" y2="120" gradientUnits="userSpaceOnUse">
+<stop stop-color="#22C55E"/>
+<stop offset="1" stop-color="#0EA5E9"/>
+</linearGradient>
+<mask id="mask0_1_2" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="40" y="140" width="240" height="90">
+<rect x="40" y="140" width="240" height="90" fill="#D9D9D9"/>
+</mask>
+<clipPath id="clip0_1_2">
+<rect width="360" height="240" rx="24" fill="white"/>
+</clipPath>
+</defs>
+</svg>

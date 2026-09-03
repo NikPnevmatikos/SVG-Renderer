@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- <symbol> with a viewBox reused at three sizes via currentColor, a defs group reused with transforms and opacity, an in-tree group duplicated, and a missing target (warning expected). -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 400 220">
+  <defs>
+    <symbol id="pin" viewBox="0 0 24 24">
+      <path d="M12 2 C7.6 2 4 5.6 4 10 c0 5.4 8 12 8 12 s8-6.6 8-12 c0-4.4-3.6-8-8-8z" fill="currentColor"/>
+      <circle cx="12" cy="10" r="3" fill="white"/>
+    </symbol>
+    <g id="booth">
+      <rect width="40" height="30" rx="4" fill="#e0e7ff" stroke="#3730a3"/>
+      <text x="20" y="20" font-family="Helvetica, Arial, sans-serif" font-size="12" text-anchor="middle" fill="#312e81">B</text>
+    </g>
+  </defs>
+  <use href="#pin" x="20" y="16" width="48" height="48" color="#dc2626"/>
+  <use href="#pin" x="90" y="24" width="32" height="32" color="#16a34a"/>
+  <use xlink:href="#pin" x="140" y="30" width="20" height="20" color="#2563eb"/>
+  <use href="#booth" x="200" y="24"/>
+  <use href="#booth" x="250" y="24" transform="rotate(10 270 39)"/>
+  <use href="#booth" x="300" y="24" opacity="0.5"/>
+  <use href="#missing" x="0" y="0"/>
+  <g id="row" transform="translate(20 110)">
+    <use href="#booth"/>
+    <use href="#booth" x="50"/>
+    <use href="#booth" x="100"/>
+  </g>
+  <use href="#row" y="50"/>
+</svg>

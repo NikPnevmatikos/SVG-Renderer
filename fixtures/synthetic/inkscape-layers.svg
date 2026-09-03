@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Inkscape-style export: editor namespaces, layer groups with transforms, inline style attributes, tspans with sodipodi roles. Written by hand in the shape Inkscape 1.x produces. -->
+<svg
+   width="120mm"
+   height="80mm"
+   viewBox="0 0 120 80"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.3 (0e150ed, 2023-07-21)"
+   sodipodi:docname="hall.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     inkscape:document-units="mm" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Walls"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <rect
+       style="fill:none;stroke:#1b17b0;stroke-width:1.2;stroke-linejoin:round"
+       id="rect1"
+       width="110"
+       height="70"
+       x="5"
+       y="5" />
+    <path
+       style="fill:none;stroke:#1b17b0;stroke-width:0.6;stroke-dasharray:2.4,1.2"
+       d="M 60,5 V 75"
+       id="path1" />
+  </g>
+  <g
+     inkscape:label="Booths"
+     inkscape:groupmode="layer"
+     id="layer2"
+     transform="translate(10,12)">
+    <rect
+       style="fill:#dbeafe;fill-opacity:1;stroke:#1e40af;stroke-width:0.4"
+       id="booth-1"
+       width="18"
+       height="12"
+       x="0"
+       y="0" />
+    <rect
+       style="fill:#dcfce7;fill-opacity:1;stroke:#166534;stroke-width:0.4"
+       id="booth-2"
+       width="18"
+       height="12"
+       x="22"
+       y="0"
+       ry="1.5" />
+    <ellipse
+       style="fill:#fee2e2;stroke:#991b1b;stroke-width:0.4"
+       id="stage"
+       cx="80"
+       cy="30"
+       rx="18"
+       ry="10" />
+    <path
+       style="fill:#fef3c7;stroke:#92400e;stroke-width:0.4"
+       d="m 0,20 h 40 v 30 h -20 v -10 h -20 z"
+       id="hall-b" />
+  </g>
+  <g
+     inkscape:label="Labels"
+     inkscape:groupmode="layer"
+     id="layer3">
+    <text
+       xml:space="preserve"
+       style="font-size:4.2px;font-family:sans-serif;fill:#1f2937"
+       x="12"
+       y="40"
+       id="text1"><tspan
+         sodipodi:role="line"
+         id="tspan1"
+         x="12"
+         y="40">Hall B</tspan></text>
+    <text
+       style="font-size:3.5px;font-style:italic;font-family:sans-serif;text-anchor:middle;fill:#7f1d1d"
+       x="90"
+       y="43"
+       id="text2">Main stage</text>
+  </g>
+</svg>

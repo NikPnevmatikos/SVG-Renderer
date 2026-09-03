@@ -54,7 +54,7 @@ export default function App(): React.ReactElement {
       <StatusBar style="dark" />
       <View style={styles.header}>
         <Text style={styles.title}>svg-renderer example</Text>
-        <Text style={styles.subtitle}>phase 0 · react-native-svg backend · {Platform.OS}</Text>
+        <Text style={styles.subtitle}>phase 1 · react-native-svg backend · {Platform.OS}</Text>
       </View>
 
       <ScrollView
@@ -92,6 +92,10 @@ export default function App(): React.ReactElement {
           <Stat label="parse + normalize" value={`${parsed.ms.toFixed(2)} ms`} />
           <Stat label="nodes" value={parsed.document ? String(countNodes(parsed.document)) : '–'} />
           <Stat label="draw units" value={plan ? String(plan.units.length) : '–'} />
+          <Stat
+            label="batched shapes"
+            value={plan ? `${plan.mergedShapes} in ${plan.batchCount} ${plan.batchCount === 1 ? 'path' : 'paths'}` : '–'}
+          />
           <Stat label="viewBox" value={parsed.document?.viewBox ? formatViewBox(parsed.document.viewBox) : '–'} />
         </View>
         <Text style={styles.sectionTitle}>Warnings ({warnings.length})</Text>

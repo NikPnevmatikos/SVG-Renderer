@@ -6,6 +6,9 @@ export const PRESENTATION_ATTRIBUTES: readonly string[] = [
   'fill',
   'fill-opacity',
   'fill-rule',
+  'clip-rule',
+  'stop-color',
+  'stop-opacity',
   'stroke',
   'stroke-width',
   'stroke-opacity',
@@ -72,6 +75,7 @@ export function createDefaultStyle(): ResolvedStyle {
     fill: { type: 'color', value: 'black' },
     fillOpacity: 1,
     fillRule: 'nonzero',
+    clipRule: 'nonzero',
     stroke: { type: 'none' },
     strokeWidth: 1,
     strokeOpacity: 1,
@@ -153,7 +157,8 @@ function clamp01(n: number): number {
   return n < 0 ? 0 : n > 1 ? 1 : n;
 }
 
-function parseOpacity(value: string): number | null {
+/** `0.5`, `50%` -> 0.5 (clamped to 0..1); `null` when invalid. */
+export function parseOpacity(value: string): number | null {
   if (value.endsWith('%')) {
     const n = parseFloat(value);
     return Number.isFinite(n) ? clamp01(n / 100) : null;
@@ -244,6 +249,12 @@ export function resolveStyle(
   if (fillRule !== undefined && fillRule !== 'inherit') {
     if (FILL_RULES.has(fillRule)) style.fillRule = fillRule as FillRule;
     else invalid('fill-rule', fillRule);
+  }
+
+  const clipRule = get('clip-rule');
+  if (clipRule !== undefined && clipRule !== 'inherit') {
+    if (FILL_RULES.has(clipRule)) style.clipRule = clipRule as FillRule;
+    else invalid('clip-rule', clipRule);
   }
 
   const strokeWidth = get('stroke-width');

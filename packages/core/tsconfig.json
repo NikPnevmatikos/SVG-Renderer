@@ -2,7 +2,9 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "module": "CommonJS",
+    "moduleResolution": "Node10"
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "**/*.test.ts", "**/*.test.tsx"]

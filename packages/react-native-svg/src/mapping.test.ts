@@ -1,9 +1,13 @@
-import { createDefaultStyle, parseSvg } from '@nikpnevmatikos/svg-core';
+import { createDefaultStyle, parseSvg, type PlanOptions } from '@nikpnevmatikos/svg-core';
 import { matrixToTransform, paintToString, planToTree, styleToProps, type ElementDesc } from './mapping';
 
-const tree = (xml: string, options?: { width?: number | string; height?: number | string }): ElementDesc => {
+const tree = (
+  xml: string,
+  options?: { width?: number | string; height?: number | string },
+  planOptions?: PlanOptions
+): ElementDesc => {
   const doc = parseSvg(xml);
-  return planToTree(doc.plan(), doc, options);
+  return planToTree(planOptions ? doc.plan(planOptions) : doc.plan(), doc, options);
 };
 
 describe('styleToProps', () => {
@@ -126,13 +130,68 @@ describe('planToTree', () => {
     });
   });
 
-  it('re-serializes malformed paths and maps images', () => {
+  it('emits Defs with gradients, clip paths and raw passthrough definitions', () => {
     const root = tree(`
+      <svg viewBox="0 0 10 10">
+        <defs>
+          <linearGradient id="g" x1="0" x2="1" y2="0.5"><stop offset="0.5" stop-color="red" stop-opacity="0.5"/></linearGradient>
+          <radialGradient id="rg" gradientUnits="userSpaceOnUse" cx="5" cy="5" r="4"><stop offset="0" stop-color="blue"/></radialGradient>
+          <clipPath id="c"><rect width="4" height="4" clip-rule="evenodd"/></clipPath>
+          <pattern id="p" width="2" height="2" patternUnits="userSpaceOnUse" style="fill: none"><circle r="1" fill="#000"/></pattern>
+        </defs>
+        <rect width="10" height="10" fill="url(#g)" clip-path="url(#c)"/>
+      </svg>`);
+    const defs = root.children[0]!;
+    expect(defs.type).toBe('Defs');
+    const [g, rg, c, p] = defs.children;
+    // objectBoundingBox fractions become percentages; react-native-svg reads plain numbers as absolute.
+    expect(g).toMatchObject({
+      type: 'LinearGradient',
+      props: { id: 'g', gradientUnits: 'objectBoundingBox', x1: '0%', y1: '0%', x2: '100%', y2: '50%' },
+    });
+    expect(g!.children[0]).toMatchObject({ type: 'Stop', props: { offset: 0.5, stopColor: 'red', stopOpacity: 0.5 } });
+    expect(rg).toMatchObject({
+      type: 'RadialGradient',
+      props: { id: 'rg', gradientUnits: 'userSpaceOnUse', cx: 5, cy: 5, r: 4, fx: 5, fy: 5 },
+    });
+    expect(c).toMatchObject({ type: 'ClipPath', props: { id: 'c' } });
+    expect(c!.children[0]).toMatchObject({ type: 'Rect', props: { clipRule: 'evenodd', width: 4, height: 4 } });
+    expect(p).toMatchObject({
+      type: 'Raw',
+      component: 'Pattern',
+      props: { id: 'p', width: '2', height: '2', patternUnits: 'userSpaceOnUse', fill: 'none' },
+    });
+    expect(p!.children[0]).toMatchObject({ type: 'Raw', component: 'Circle', props: { r: '1', fill: '#000' } });
+    const rect = root.children[1]!;
+    expect(rect.props.fill).toBe('url(#g)');
+    expect(rect.props.clipPath).toBe('url(#c)');
+  });
+
+  it('renders batches as single paths with the shared style', () => {
+    const root = tree(`
+      <svg viewBox="0 0 10 10">
+        <rect width="2" height="2" fill="#123" stroke="#456" stroke-width="0.5"/>
+        <rect x="4" width="2" height="2" fill="#123" stroke="#456" stroke-width="0.5"/>
+        <circle cx="8" cy="8" r="1" fill="red"/>
+      </svg>`);
+    expect(root.children.map((c) => c.type)).toEqual(['Path', 'Circle']);
+    expect(root.children[0]).toMatchObject({
+      type: 'Path',
+      props: { fill: '#123', stroke: '#456', strokeWidth: 0.5, d: 'M0 0L2 0L2 2L0 2ZM4 0L6 0L6 2L4 2Z' },
+    });
+  });
+
+  it('re-serializes malformed paths and maps images', () => {
+    const root = tree(
+      `
       <svg viewBox="0 0 10 10">
         <path d="M0 0 L5 5 L"/>
         <path d="M0 0h5v5z"/>
         <image href="https://example.com/a.png" width="4" height="4" opacity="0.5"/>
-      </svg>`);
+      </svg>`,
+      undefined,
+      { batching: false }
+    );
     expect(root.children[0]?.props.d).toBe('M0 0L5 5');
     expect(root.children[1]?.props.d).toBe('M0 0h5v5z');
     expect(root.children[2]).toMatchObject({

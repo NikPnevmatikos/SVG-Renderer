@@ -1,3 +1,5 @@
+import type { XmlElement } from './xml/tokenize';
+
 /**
  * Affine matrix `[a, b, c, d, e, f]` mapping a point (x, y) to
  * (a*x + c*y + e, b*x + d*y + f). Same layout as the SVG `matrix()` transform.
@@ -46,6 +48,8 @@ export interface ResolvedStyle {
   fill: Paint;
   fillOpacity: number;
   fillRule: FillRule;
+  /** Winding rule for shapes used inside a `<clipPath>`. */
+  clipRule: FillRule;
   stroke: Paint;
   strokeWidth: number;
   strokeOpacity: number;
@@ -67,8 +71,7 @@ export interface ResolvedStyle {
 }
 
 export type WarningCode =
-  | 'stylesheet-unsupported'
-  | 'use-unsupported'
+  | 'css-unsupported'
   | 'unsupported-element'
   | 'invalid-attribute'
   | 'duplicate-id'
@@ -216,15 +219,69 @@ export interface PreserveAspectRatio {
   meetOrSlice: 'meet' | 'slice';
 }
 
-/** Placeholder until phase 1 resolves gradients, clip paths and friends. */
-export interface DefEntry {
+export type GradientUnits = 'objectBoundingBox' | 'userSpaceOnUse';
+export type SpreadMethod = 'pad' | 'reflect' | 'repeat';
+
+export interface GradientStop {
+  /** 0..1, non-decreasing. */
+  offset: number;
+  color: string;
+  opacity: number;
+}
+
+interface GradientBase {
+  id: string;
+  units: GradientUnits;
+  spreadMethod: SpreadMethod;
+  transform: Matrix;
+  stops: GradientStop[];
+}
+
+/** Coordinates are fractions of the bounding box for `objectBoundingBox`, user units otherwise. */
+export interface LinearGradientDef extends GradientBase {
+  kind: 'linearGradient';
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+export interface RadialGradientDef extends GradientBase {
+  kind: 'radialGradient';
+  cx: number;
+  cy: number;
+  r: number;
+  fx: number;
+  fy: number;
+  fr: number;
+}
+
+export interface ClipPathDef {
+  kind: 'clipPath';
+  id: string;
+  units: GradientUnits;
+  transform: Matrix;
+  /** Detached group holding the shapes and text that define the clip region. */
+  root: GroupNode;
+}
+
+/** Definitions we pass through to the backend without interpreting them (v1: pattern, mask, marker, filter, symbol, ...). */
+export interface RawDef {
+  kind: 'raw';
   id: string;
   tag: string;
+  element: XmlElement;
 }
+
+export type DefEntry = LinearGradientDef | RadialGradientDef | ClipPathDef | RawDef;
 export type DefsTable = Record<string, DefEntry>;
 
 export interface PlanOptions {
-  /** Merge same-styled static shapes into batches. Not implemented yet; reserved. */
+  /**
+   * Merge runs of consecutive, same-styled, opaque static shapes into single paths so the
+   * number of draw units follows the number of paint styles, not the number of elements.
+   * Paint order is preserved exactly. Default `true`.
+   */
   batching?: boolean;
   /** Nodes for which this returns true are planned as individual, restylable units. */
   interactive?: (node: SvgNode) => boolean;
@@ -254,6 +311,23 @@ export interface RenderPlan {
   dynamicIds: Set<string>;
   /** Whether style batching was applied. */
   batched: boolean;
+  /** Number of `batch` units. */
+  batchCount: number;
+  /** Number of shapes that were merged into batches. */
+  mergedShapes: number;
+}
+
+export type HitTestMode = 'painted' | 'geometry';
+
+export interface HitTestOptions {
+  /** Count stroke bands. Default true. */
+  includeStroke?: boolean;
+  /** Extra distance in document units that still counts as a hit (touch slop). Default 0. */
+  tolerance?: number;
+  /** `painted` (SVG pointer semantics, default) or `geometry` (every outline counts as filled). */
+  mode?: HitTestMode;
+  /** Only consider nodes for which this returns true. */
+  filter?: (node: SvgNode) => boolean;
 }
 
 export interface SvgDocument {
@@ -268,8 +342,16 @@ export interface SvgDocument {
   contentBounds: Rect;
   warnings: SvgWarning[];
   getElementById(id: string): SvgNode | undefined;
-  /** Simple selectors only for now: `tag`, `#id`, `.class`, combinations, comma lists. */
+  /**
+   * CSS selectors: type, `#id`, `.class`, attributes, combinators, lists and the structural
+   * pseudo-classes `:first-child`, `:last-child`, `:only-child`, `:root`. Throws otherwise.
+   */
   querySelectorAll(selector: string): SvgNode[];
+  /**
+   * Leaf nodes under a point in document (user) coordinates, topmost first. Uses a spatial
+   * index built on first use, then exact geometry (fill rule, stroke width, transforms).
+   */
+  elementsAt(point: Point, options?: HitTestOptions): SvgNode[];
   plan(options?: PlanOptions): RenderPlan;
 }
 

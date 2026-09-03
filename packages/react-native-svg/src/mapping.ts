@@ -2,17 +2,23 @@ import {
   formatMatrix,
   formatViewBox,
   isIdentity,
+  parseInlineStyle,
+  planSubtree,
   serializePathData,
+  type ClipPathDef,
   type DrawUnit,
   type ImageNode,
+  type LinearGradientDef,
   type Matrix,
   type Paint,
+  type RadialGradientDef,
   type RenderPlan,
   type ResolvedStyle,
   type ShapeNode,
   type SvgDocument,
   type TextNode,
   type TextRun,
+  type XmlElement,
 } from '@nikpnevmatikos/svg-core';
 
 export type ElementType =
@@ -27,7 +33,14 @@ export type ElementType =
   | 'Path'
   | 'Text'
   | 'TSpan'
-  | 'Image';
+  | 'Image'
+  | 'Defs'
+  | 'LinearGradient'
+  | 'RadialGradient'
+  | 'Stop'
+  | 'ClipPath'
+  /** Passthrough of an uninterpreted definition (pattern, mask, marker, filter); see `component`. */
+  | 'Raw';
 
 /** Backend-neutral description of a react-native-svg element tree. Pure data, easy to test. */
 export interface ElementDesc {
@@ -37,6 +50,8 @@ export interface ElementDesc {
   children: ElementDesc[];
   /** Text content for TSpan / Text leaves. */
   text?: string;
+  /** react-native-svg export name for `Raw` elements (`Pattern`, `FeGaussianBlur`, ...). */
+  component?: string;
 }
 
 export interface TreeOptions {
@@ -68,6 +83,7 @@ export function styleToProps(style: ResolvedStyle): Record<string, unknown> {
     if (style.fillOpacity !== 1) props.fillOpacity = style.fillOpacity;
     if (style.fillRule !== 'nonzero') props.fillRule = style.fillRule;
   }
+  if (style.clipRule !== 'nonzero') props.clipRule = style.clipRule;
   if (style.stroke.type !== 'none') {
     props.stroke = paintToString(style.stroke);
     props.strokeWidth = style.strokeWidth;
@@ -80,6 +96,8 @@ export function styleToProps(style: ResolvedStyle): Record<string, unknown> {
   }
   if (style.opacity !== 1) props.opacity = style.opacity;
   if (style.clipPath !== undefined) props.clipPath = `url(#${style.clipPath})`;
+  if (style.mask !== undefined) props.mask = `url(#${style.mask})`;
+  if (style.filter !== undefined) props.filter = `url(#${style.filter})`;
   if (style.vectorEffect !== undefined) props.vectorEffect = style.vectorEffect;
   return props;
 }
@@ -157,7 +175,14 @@ function runToDesc(run: TextRun, parentStyle: ResolvedStyle, key: string): Eleme
 export function textToDesc(node: TextNode, key: string): ElementDesc {
   const props = withCommon(node, { ...styleToProps(node.style), ...fontProps(node.style), x: node.x, y: node.y });
   const single = node.runs.length === 1 ? node.runs[0] : undefined;
-  if (single && single.style === node.style && single.x === undefined && single.y === undefined && single.dx === undefined && single.dy === undefined) {
+  if (
+    single &&
+    single.style === node.style &&
+    single.x === undefined &&
+    single.y === undefined &&
+    single.dx === undefined &&
+    single.dy === undefined
+  ) {
     return { type: 'Text', key, props, children: [], text: single.text };
   }
   return {
@@ -196,26 +221,13 @@ function groupBeginToDesc(unit: Extract<DrawUnit, { kind: 'group-begin' }>, key:
   return { type: 'G', key, props, children: [] };
 }
 
-export function rootProps(document: SvgDocument, options: TreeOptions): Record<string, unknown> {
-  const viewBox = document.viewBox ?? document.contentBounds;
-  const props: Record<string, unknown> = {
-    width: options.width ?? '100%',
-    height: options.height ?? '100%',
-    viewBox: formatViewBox(viewBox),
-  };
-  const par = document.preserveAspectRatio;
-  props.preserveAspectRatio = par.align === 'none' ? 'none' : `${par.align} ${par.meetOrSlice}`;
-  return props;
-}
-
-/** Convert a render plan into an element tree description rooted at `<Svg>`. */
-export function planToTree(plan: RenderPlan, document: SvgDocument, options: TreeOptions = {}): ElementDesc {
-  const root: ElementDesc = { type: 'Svg', key: 'root', props: rootProps(document, options), children: [] };
-  const stack: ElementDesc[] = [root];
+/** Append draw units as children of `container`, nesting `group-begin` / `group-end` pairs. */
+function appendUnits(container: ElementDesc, units: readonly DrawUnit[], keyPrefix: string): void {
+  const stack: ElementDesc[] = [container];
   let counter = 0;
-  for (const unit of plan.units) {
-    const parent = stack[stack.length - 1] ?? root;
-    const key = `u${counter++}`;
+  for (const unit of units) {
+    const parent = stack[stack.length - 1] ?? container;
+    const key = `${keyPrefix}${counter++}`;
     switch (unit.kind) {
       case 'group-begin': {
         const group = groupBeginToDesc(unit, key);
@@ -245,5 +257,137 @@ export function planToTree(plan: RenderPlan, document: SvgDocument, options: Tre
         break;
     }
   }
+}
+
+/**
+ * Gradient coordinates. With `objectBoundingBox` units react-native-svg treats plain numbers
+ * as absolute lengths, unlike browsers, so fractions are emitted as percentages.
+ */
+function gradientCoordinate(value: number, units: 'objectBoundingBox' | 'userSpaceOnUse'): number | string {
+  return units === 'objectBoundingBox' ? `${value * 100}%` : value;
+}
+
+export function gradientToDesc(def: LinearGradientDef | RadialGradientDef, key: string): ElementDesc {
+  const common: Record<string, unknown> = { id: def.id, gradientUnits: def.units };
+  if (!isIdentity(def.transform)) common.gradientTransform = formatMatrix(def.transform);
+  const children: ElementDesc[] = def.stops.map((stop, index) => {
+    const props: Record<string, unknown> = { offset: stop.offset, stopColor: stop.color };
+    if (stop.opacity !== 1) props.stopOpacity = stop.opacity;
+    return { type: 'Stop', key: `${key}-s${index}`, props, children: [] };
+  });
+  const c = (value: number): number | string => gradientCoordinate(value, def.units);
+  if (def.kind === 'linearGradient') {
+    return {
+      type: 'LinearGradient',
+      key,
+      props: { ...common, x1: c(def.x1), y1: c(def.y1), x2: c(def.x2), y2: c(def.y2) },
+      children,
+    };
+  }
+  return {
+    type: 'RadialGradient',
+    key,
+    props: { ...common, cx: c(def.cx), cy: c(def.cy), r: c(def.r), fx: c(def.fx), fy: c(def.fy) },
+    children,
+  };
+}
+
+export function clipPathToDesc(def: ClipPathDef, key: string): ElementDesc {
+  const props: Record<string, unknown> = { id: def.id };
+  const transform = matrixToTransform(def.transform);
+  if (transform !== undefined) props.transform = transform;
+  const desc: ElementDesc = { type: 'ClipPath', key, props, children: [] };
+  appendUnits(desc, planSubtree(def.root).units, `${key}-`);
+  return desc;
+}
+
+const RAW_COMPONENTS: Record<string, string> = {
+  clipPath: 'ClipPath',
+  linearGradient: 'LinearGradient',
+  radialGradient: 'RadialGradient',
+  tspan: 'TSpan',
+  textPath: 'TextPath',
+  foreignObject: 'ForeignObject',
+};
+
+const RAW_PASSTHROUGH_TAGS: ReadonlySet<string> = new Set(['pattern', 'mask', 'marker', 'filter']);
+
+function camelCase(name: string): string {
+  return name.replace(/-([a-z])/g, (_match, letter: string) => letter.toUpperCase());
+}
+
+/** Generic element passthrough: tag to component name, attributes camel-cased, inline style expanded. */
+export function rawToDesc(el: XmlElement, key: string): ElementDesc {
+  const component = RAW_COMPONENTS[el.name] ?? el.name.charAt(0).toUpperCase() + el.name.slice(1);
+  const props: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(el.attrs)) {
+    if (name === 'class' || name.startsWith('xmlns')) continue;
+    if (name === 'style') {
+      for (const [property, propertyValue] of Object.entries(parseInlineStyle(value))) {
+        props[camelCase(property)] = propertyValue;
+      }
+      continue;
+    }
+    if (name.includes(':')) {
+      if (name === 'xlink:href') props.href = value;
+      continue;
+    }
+    props[camelCase(name)] = value;
+  }
+  const children: ElementDesc[] = [];
+  let text: string | undefined;
+  for (const child of el.children) {
+    if (child.type === 'text') {
+      if (child.value.trim().length > 0) text = (text ?? '') + child.value;
+    } else {
+      children.push(rawToDesc(child, `${key}-${children.length}`));
+    }
+  }
+  const desc: ElementDesc = { type: 'Raw', component, key, props, children };
+  if (text !== undefined) desc.text = text;
+  return desc;
+}
+
+/** `<Defs>` with every definition the backend can use, or `null` when there are none. */
+export function defsToDesc(document: SvgDocument): ElementDesc | null {
+  const children: ElementDesc[] = [];
+  let index = 0;
+  for (const def of Object.values(document.defs)) {
+    const key = `def${index++}`;
+    switch (def.kind) {
+      case 'linearGradient':
+      case 'radialGradient':
+        children.push(gradientToDesc(def, key));
+        break;
+      case 'clipPath':
+        children.push(clipPathToDesc(def, key));
+        break;
+      case 'raw':
+        if (RAW_PASSTHROUGH_TAGS.has(def.tag)) children.push(rawToDesc(def.element, key));
+        break;
+    }
+  }
+  if (children.length === 0) return null;
+  return { type: 'Defs', key: 'defs', props: {}, children };
+}
+
+export function rootProps(document: SvgDocument, options: TreeOptions): Record<string, unknown> {
+  const viewBox = document.viewBox ?? document.contentBounds;
+  const props: Record<string, unknown> = {
+    width: options.width ?? '100%',
+    height: options.height ?? '100%',
+    viewBox: formatViewBox(viewBox),
+  };
+  const par = document.preserveAspectRatio;
+  props.preserveAspectRatio = par.align === 'none' ? 'none' : `${par.align} ${par.meetOrSlice}`;
+  return props;
+}
+
+/** Convert a render plan into an element tree description rooted at `<Svg>`. */
+export function planToTree(plan: RenderPlan, document: SvgDocument, options: TreeOptions = {}): ElementDesc {
+  const root: ElementDesc = { type: 'Svg', key: 'root', props: rootProps(document, options), children: [] };
+  const defs = defsToDesc(document);
+  if (defs) root.children.push(defs);
+  appendUnits(root, plan.units, 'u');
   return root;
 }

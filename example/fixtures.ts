@@ -87,6 +87,67 @@ const cssClasses = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 160
   <rect class="booth" x="20" y="100" width="260" height="40"/>
 </svg>`;
 
+const gradientsClip = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 400 240">
+  <defs>
+    <style>
+      .stop-a { stop-color: #2563eb }
+      .stop-b { stop-color: #f97316; stop-opacity: 0.9 }
+    </style>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" class="stop-a"/>
+      <stop offset="100%" class="stop-b"/>
+    </linearGradient>
+    <linearGradient id="sky-flipped" xlink:href="#sky" x1="0" y1="1" x2="1" y2="0"/>
+    <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5" fx="0.35" fy="0.35">
+      <stop offset="0" stop-color="#fff7ae"/>
+      <stop offset="0.7" stop-color="#facc15"/>
+      <stop offset="1" stop-color="#ca8a04" stop-opacity="0.6"/>
+    </radialGradient>
+    <linearGradient id="ruler" gradientUnits="userSpaceOnUse" x1="20" y1="0" x2="380" y2="0" gradientTransform="rotate(10)">
+      <stop offset="0" stop-color="#111827"/>
+      <stop offset="0.5" stop-color="#9ca3af"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <clipPath id="frame">
+      <path d="M220 130 h160 v90 h-160 z M250 160 h100 v30 h-100 z" clip-rule="evenodd"/>
+    </clipPath>
+  </defs>
+  <rect x="20" y="20" width="170" height="90" rx="8" fill="url(#sky)"/>
+  <rect x="210" y="20" width="170" height="90" rx="8" fill="url(#sky-flipped)" stroke="#1e3a8a" stroke-width="2"/>
+  <circle cx="70" cy="180" r="45" fill="url(#sun)"/>
+  <rect x="130" y="140" width="70" height="80" fill="url(#missing) #a3e635" stroke="#365314"/>
+  <g clip-path="url(#frame)">
+    <rect x="200" y="120" width="200" height="120" fill="url(#ruler)"/>
+    <circle cx="300" cy="175" r="60" fill="#ef4444" fill-opacity="0.5"/>
+  </g>
+</svg>`;
+
+const useSymbol = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 400 220">
+  <defs>
+    <symbol id="pin" viewBox="0 0 24 24">
+      <path d="M12 2 C7.6 2 4 5.6 4 10 c0 5.4 8 12 8 12 s8-6.6 8-12 c0-4.4-3.6-8-8-8z" fill="currentColor"/>
+      <circle cx="12" cy="10" r="3" fill="white"/>
+    </symbol>
+    <g id="booth">
+      <rect width="40" height="30" rx="4" fill="#e0e7ff" stroke="#3730a3"/>
+      <text x="20" y="20" font-family="Helvetica, Arial, sans-serif" font-size="12" text-anchor="middle" fill="#312e81">B</text>
+    </g>
+  </defs>
+  <use href="#pin" x="20" y="16" width="48" height="48" color="#dc2626"/>
+  <use href="#pin" x="90" y="24" width="32" height="32" color="#16a34a"/>
+  <use xlink:href="#pin" x="140" y="30" width="20" height="20" color="#2563eb"/>
+  <use href="#booth" x="200" y="24"/>
+  <use href="#booth" x="250" y="24" transform="rotate(10 270 39)"/>
+  <use href="#booth" x="300" y="24" opacity="0.5"/>
+  <use href="#missing" x="0" y="0"/>
+  <g id="row" transform="translate(20 110)">
+    <use href="#booth"/>
+    <use href="#booth" x="50"/>
+    <use href="#booth" x="100"/>
+  </g>
+  <use href="#row" y="50"/>
+</svg>`;
+
 /** Grid of booths with hairline aisles: many elements, few paint styles. */
 export function generateGrid(rows: number, cols: number): string {
   const cell = 24;
@@ -139,12 +200,25 @@ export const FIXTURES: Fixture[] = [
   {
     name: 'CSS classes',
     description:
-      'Illustrator-style export styled through a <style> block. Not applied yet (phase 1): shapes fall back to default paint and a warning is reported.',
+      'Illustrator-style export styled through a <style> block: class selectors, an id rule and dashes, applied by the core CSS cascade before rendering.',
     xml: cssClasses,
   },
   {
+    name: 'Gradients & clip',
+    description:
+      'Linear and radial gradients with stylesheet stops, href inheritance and userSpaceOnUse units; an evenodd clipPath; a fallback paint for a missing reference (warning expected).',
+    xml: gradientsClip,
+  },
+  {
+    name: 'Symbols & use',
+    description:
+      'A symbol with its own viewBox reused at three sizes through currentColor, a defs group reused with transform and opacity, an in-tree row duplicated with use, and one missing target (warning expected).',
+    xml: useSymbol,
+  },
+  {
     name: 'Grid 1k',
-    description: '1,000 booths plus hairline aisles in 8 paint styles. Style batching (phase 1) will collapse this to a handful of draw units.',
+    description:
+      '1,000 booths plus hairline aisles in 8 paint styles. Style batching merges same-styled neighbours into single paths, so the backend receives a few dozen draw units instead of a thousand native views.',
     xml: generateGrid(25, 40),
   },
 ];

@@ -158,10 +158,11 @@ export function parseTransform(input: string): Matrix | null {
   return result;
 }
 
-export function formatMatrix(m: Matrix, precision = 6): string {
+/** `matrix(a b c d e f)`. Exact (shortest round-trip) unless `precision` decimals are requested. */
+export function formatMatrix(m: Matrix, precision?: number): string {
   const fmt = (v: number): string => {
-    const rounded = Number(v.toFixed(precision));
-    return String(rounded === 0 ? 0 : rounded);
+    const value = precision === undefined ? v : Number(v.toFixed(precision));
+    return String(value === 0 ? 0 : value);
   };
   return `matrix(${m.map(fmt).join(' ')})`;
 }

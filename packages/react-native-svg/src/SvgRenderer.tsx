@@ -1,15 +1,21 @@
 import * as React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
+import * as RNSVG from 'react-native-svg';
 import Svg, {
   Circle,
+  ClipPath,
+  Defs,
   Ellipse,
   G,
   Image,
   Line,
+  LinearGradient,
   Path,
   Polygon,
   Polyline,
+  RadialGradient,
   Rect,
+  Stop,
   Text,
   TSpan,
 } from 'react-native-svg';
@@ -17,7 +23,9 @@ import { parseSvg, type PlanOptions, type SvgDocument, type SvgSource } from '@n
 import { planToTree, type ElementDesc, type ElementType } from './mapping';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const COMPONENTS: Record<ElementType, React.ComponentType<any>> = {
+type AnyComponent = React.ComponentType<any>;
+
+const COMPONENTS: Record<Exclude<ElementType, 'Raw'>, AnyComponent> = {
   Svg,
   G,
   Rect,
@@ -30,18 +38,34 @@ const COMPONENTS: Record<ElementType, React.ComponentType<any>> = {
   Text,
   TSpan,
   Image,
+  Defs,
+  LinearGradient,
+  RadialGradient,
+  Stop,
+  ClipPath,
 };
 
-/** Turn an element description into react-native-svg elements. */
+function resolveComponent(desc: ElementDesc): AnyComponent | null {
+  if (desc.type !== 'Raw') return COMPONENTS[desc.type];
+  const candidate = (RNSVG as unknown as Record<string, unknown>)[desc.component ?? ''];
+  return typeof candidate === 'function' || (typeof candidate === 'object' && candidate !== null)
+    ? (candidate as AnyComponent)
+    : null;
+}
+
+/** Turn an element description into react-native-svg elements. Unknown passthrough elements render nothing. */
 export function renderElementTree(
   desc: ElementDesc,
   extraProps?: Record<string, unknown>
-): React.ReactElement {
-  const Component = COMPONENTS[desc.type];
+): React.ReactElement | null {
+  const Component = resolveComponent(desc);
+  if (!Component) return null;
   const props = extraProps ? { ...desc.props, ...extraProps } : desc.props;
   let children: React.ReactNode;
   if (desc.text !== undefined) children = desc.text;
-  else if (desc.children.length > 0) children = desc.children.map((child) => renderElementTree(child));
+  else if (desc.children.length > 0) {
+    children = desc.children.map((child) => renderElementTree(child)).filter((child) => child !== null);
+  }
   return React.createElement(Component, { key: desc.key, ...props }, children);
 }
 

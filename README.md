@@ -7,9 +7,38 @@ Render any real-world SVG in React Native **correctly, fast, and interactively**
 exports included — and get a queryable model of the document (ids, geometry, hit testing)
 instead of an opaque picture.
 
-> **Status: pre-alpha (phase 0).** The architecture is in place and the packages build, test
-> and render, but the feature set is a thin vertical slice. See the
-> [design document](./docs/DESIGN.md) for the plan and the [roadmap](./docs/DESIGN.md#13-roadmap-and-exit-criteria).
+> **Status: pre-alpha (phase 1 complete).** The core parses, normalizes, plans and hit-tests
+> real-world SVG and is verified pixel-for-pixel against a reference renderer; the
+> react-native-svg backend renders it. Pan/zoom viewer and the Skia backend are next. See the
+> [design document](./docs/DESIGN.md) and its [roadmap](./docs/DESIGN.md#13-roadmap-and-exit-criteria).
+
+## What works today
+
+- **Real-world input.** XML with entities and CDATA, `<style>` stylesheets (type, class, id and
+  attribute selectors, all combinators, specificity, `!important`, custom properties),
+  presentation attributes and inline styles with inheritance, `use` and `symbol` expansion,
+  nested transforms, physical units, editor namespaces (Illustrator, Inkscape, Figma, draw.io
+  exports are covered by fixtures).
+- **Definitions.** Linear and radial gradients (including `href` inheritance), clip paths,
+  and raw passthrough of patterns, masks, markers and filters. Broken references fall back to
+  the fallback paint and are reported.
+- **Geometry.** Exact bounding boxes for every shape including arcs and nested transforms,
+  `document.elementsAt(point)` hit testing with fill rules, stroke bands and touch tolerance,
+  backed by a spatial index.
+- **Performance.** The render planner merges same-styled opaque shapes into single paths
+  wherever that cannot change the picture, so a backend receives a handful of draw units for
+  thousands of elements.
+- **Tooling.** A JSON intermediate representation for caching and server-side normalization,
+  an SVG emitter, and the `svg-core` CLI (`inspect`, `plan`, `normalize`).
+- **Nothing silently dropped.** Every unsupported construct is reported in `document.warnings`.
+
+Measured on the generated benchmark grids (Node 24, desktop, `npm run bench`):
+
+| Fixture | Elements | Parse + normalize | Plan | Draw units |
+|---|---|---|---|---|
+| grid-1000 | 1,032 | 5 ms | 3 ms | 8 |
+| grid-10000 | 10,090 | 21 ms | 38 ms | 8 |
+| grid-50000 | 50,194 | 72 ms | 191 ms | 8 |
 
 ## Why
 
@@ -45,15 +74,28 @@ export function Logo({ xml }: { xml: string }) {
 }
 ```
 
-Parse once and inspect the document:
+Parse once and work with the document:
 
 ```ts
-import { parseSvg, nodeBBox } from '@nikpnevmatikos/svg-core';
+import { parseSvg, nodeBBox, toSvgString, serializeDocument } from '@nikpnevmatikos/svg-core';
 
 const doc = parseSvg(xml);
-doc.warnings;                       // anything unsupported is reported, never silently dropped
+doc.warnings;                                  // anything unsupported is reported, never silently dropped
 const room = doc.getElementById('room-a1');
-if (room) nodeBBox(room, 'world');  // bounding box in SVG user space, transforms applied
+if (room) nodeBBox(room, 'world');             // bounding box in SVG user space, transforms applied
+doc.querySelectorAll('g.zone > rect.room');    // CSS selectors over the scene graph
+doc.elementsAt({ x: 120, y: 80 }, { tolerance: 4, mode: 'geometry' }); // topmost first
+doc.plan();                                    // draw units for a backend, batched by style
+toSvgString(doc);                              // standalone SVG with everything resolved
+JSON.stringify(serializeDocument(doc));        // cacheable intermediate representation
+```
+
+Command line:
+
+```bash
+npx @nikpnevmatikos/svg-core inspect floor.svg --ids rooms.json   # counts, ids, warnings; exit 1 if an id is missing
+npx @nikpnevmatikos/svg-core plan floor.svg                       # how many draw units a backend gets
+npx @nikpnevmatikos/svg-core normalize floor.svg -o floor.clean.svg
 ```
 
 ## Development
@@ -63,10 +105,11 @@ Requires Node 20+.
 ```bash
 npm install                 # all workspaces
 npm run build               # core, then renderer (the example resolves the built dist)
-npm test                    # unit tests for every package
+npm test                    # unit tests plus the resvg round-trip conformance suite
 npm run typecheck
 npm run example:web         # Expo example app in the browser
 npm run fixtures:generate   # synthetic 1k / 10k / 50k element benchmark fixtures
+npm run bench               # parse and plan timings for the generated fixtures
 ```
 
 Repository layout, testing strategy and performance budgets are described in

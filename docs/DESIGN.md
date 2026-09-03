@@ -245,9 +245,11 @@ Expected effect on typical CAD-style drawings: hundreds or thousands of hairline
 sharing a few colours collapse into a few dozen draw units. Both backends benefit: fewer
 native views for `react-native-svg`, fewer paths to record into a picture for Skia.
 
-An optional later optimization merges non-consecutive same-styled shapes when the bounding
-boxes of everything painted between them do not overlap; the planner exposes a
-`reorderingPolicy` for this.
+Shapes of the same style need not be adjacent. Several runs stay open at once and each run is
+emitted at the position of its first shape; a shape joins its style's run only if nothing
+painted since that run started overlaps it, which a spatial index of painted bounds answers
+cheaply. Interleaved grids (Illustrator exports alternate styles constantly) therefore still
+collapse to one path per style, with paint order provably unchanged.
 
 ### 6.6 Scene graph (IR) sketch
 
@@ -539,7 +541,7 @@ than one package changes per release.
 | Phase | Scope | Exit criteria |
 |---|---|---|
 | **P0 Foundation** — *scaffold done 2026-09-02* | Monorepo scaffold, CI, example app, this document, fixture generators. Shipped with a thin vertical slice of the core (tokenizer, geometry, presentation-attribute cascade, builder, pass-through planner) so the pipeline runs end to end. | `npm test` green; example renders a hard-coded SVG through the RNSVG backend on both platforms. *Status: tests green, verified on web and on iPhone via Expo Go; Android still to be checked.* |
-| **P1 Core** | Tokenizer, CSS cascade, normalization passes, geometry, planner with style batching, IR (de)serialization, CLI, round-trip harness, fixture corpus v1, Node perf tests. | All fixtures round-trip within tolerance, batched and unbatched; a 1k-element CSS-class export plans to under 50 draw units; medium-tier parse budget met. |
+| **P1 Core** — *done 2026-09-02* | Tokenizer, CSS cascade, normalization passes, geometry, planner with style batching, IR (de)serialization, CLI, round-trip harness, fixture corpus v1, Node perf tests. | All fixtures round-trip within tolerance, batched and unbatched; a 1k-element CSS-class export plans to under 50 draw units; medium-tier parse budget met. *Status: all eight synthetic fixtures pass the resvg round-trip both normalized and batched; the 1k grid plans to 8 units; 1k/10k/50k grids parse in 5/21/72 ms and plan in 3/38/191 ms on desktop Node.* |
 | **P2 Backends + viewer** | RNSVG adapter, Skia adapter (recommended in this phase, see open question 2), camera, presses in SVG space, overrides, decorators, fit-to-element, benchmarks screen. | Medium tier meets all budgets on both backends; large tier meets budgets on Skia. |
 | **P3 First production integration** | Dogfood in a real app with a floor-plan use case; fix what reality finds. | Shipped in production; no app-side SVG rendering code left. |
 | **P4 Scale** | Culling/LOD, picture/tile caching, async parsing polish, web backend decision. | Large tier meets budgets on RNSVG; huge tier usable on Skia. |

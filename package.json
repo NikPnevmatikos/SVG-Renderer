@@ -28,6 +28,7 @@
     "test": "npm run test --workspaces --if-present",
     "clean": "npm run clean --workspaces --if-present",
     "fixtures:generate": "node benchmarks/generate-fixtures.js",
+    "bench": "node benchmarks/parse-bench.js",
     "example:web": "npm run web -w example"
   }
 }
