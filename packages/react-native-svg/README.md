@@ -102,7 +102,7 @@ re-anchored after each gesture, so zoomed content is crisp again.
 | `selectedStyle` | `StyleOverride \| (node) => StyleOverride` | Highlight for selected elements. Default green stroke, width 3. |
 | `clearSelectionOnBackgroundPress` | `boolean` | Default true. |
 | `elementStyles` | `Record<idOrSelector, StyleOverride>` | Restyle any nodes; wins over `selectedStyle`. |
-| `decorators` | `Decorator[]` | Badges/labels anchored to matching nodes, in the SVG (`layer: 'svg'`) or as fixed-size overlay views (`layer: 'overlay'`). |
+| `decorators` | `Decorator[]` | Badges/labels anchored to matching nodes, in the SVG (`layer: 'svg'`) or as fixed-size overlay views (`layer: 'overlay'`). `minTargetSize` hides a decoration while its element is drawn smaller than that many pixels (labels of small rooms appear as the user zooms in, with a short fade); `minZoom` / `maxZoom` limit it to a zoom range relative to the initial fit. |
 | `controls` | `boolean \| ViewerControlsOptions` | Built-in buttons. Default `true`, top-right. |
 | `renderControls` | `(api) => ReactNode` | Replace the built-in buttons with your own. |
 | `initialFit` | `'content' \| 'viewBox' \| Rect` | What to show first. Default `content`. |
@@ -117,4 +117,5 @@ re-anchored after each gesture, so zoomed content is crisp again.
 
 Ref: `fitToElement(id, opts)`, `fitToBounds(rect, opts)`, `fitToContent(opts)`, `zoomBy(factor, focal?, opts)`,
 `zoomTo(scale, focal?, opts)`, `getCamera()`, `screenToSvg(point)`, `svgToScreen(point)`, `getSelection()`,
-`setSelection(ids)`, `select(id)`, `deselect(id)`, `toggleSelection(id)`, `clearSelection()`.
+`setSelection(ids)`, `select(id)`, `deselect(id)`, `toggleSelection(id)`, `clearSelection()`. Fit and zoom calls made before the viewer
+ has measured itself (for example right after mounting it for a new floor) are applied as soon as it has.

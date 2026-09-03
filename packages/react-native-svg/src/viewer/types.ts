@@ -67,6 +67,16 @@ export interface Decorator {
    * anchor as the camera moves (return ordinary views). Default `overlay`.
    */
   layer?: 'svg' | 'overlay';
+  /**
+   * Hide the decoration while the smaller side of the node's bounding box is drawn smaller than
+   * this many screen pixels. Labels of small elements then appear only once the user has zoomed
+   * in enough for them to make sense (overlay decorations fade in over the last 20%).
+   */
+  minTargetSize?: number;
+  /** Show the decoration only while the zoom relative to the initial fit is at least this. */
+  minZoom?: number;
+  /** Show the decoration only while the zoom relative to the initial fit is at most this. */
+  maxZoom?: number;
   render: (node: SvgNode, bbox: Rect, index: number) => ReactNode;
 }
 

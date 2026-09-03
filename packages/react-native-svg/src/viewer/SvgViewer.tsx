@@ -43,6 +43,7 @@ import {
 } from './interactive';
 import type { StyleOverride } from '../mapping';
 import type { ElementHit, FitOptions, SelectionMode, SharedCamera, SvgViewerProps, SvgViewerRef } from './types';
+import { decoratorOpacity } from './visibility';
 
 const DEFAULT_DURATION = 350;
 const DEFAULT_SELECTED_STYLE: StyleOverride = { stroke: { type: 'color', value: '#22c55e' }, strokeWidth: 3 };
@@ -62,15 +63,30 @@ function useLatest<T>(value: T): React.RefObject<T> {
   return ref;
 }
 
-/** Fixed-size view kept on a document-space anchor while the camera moves (UI thread). */
+/**
+ * Fixed-size view kept on a document-space anchor while the camera moves (UI thread). Its
+ * opacity follows the decorator's visibility limits, so labels of small elements appear only
+ * once the user has zoomed in enough for them to make sense.
+ */
 function OverlayItem({
   anchor,
+  targetMinSide,
+  minTargetSize,
+  minZoom,
+  maxZoom,
   base,
+  fitScale,
   delta,
   children,
 }: {
   anchor: Point;
+  /** Smaller side of the decorated element's world bounding box. */
+  targetMinSide: number;
+  minTargetSize: number | undefined;
+  minZoom: number | undefined;
+  maxZoom: number | undefined;
   base: { scale: SharedValue<number>; tx: SharedValue<number>; ty: SharedValue<number> };
+  fitScale: SharedValue<number>;
   delta: SharedCamera;
   children: React.ReactNode;
 }): React.ReactElement {
@@ -87,11 +103,12 @@ function OverlayItem({
     const scale = delta.scale.value * base.scale.value;
     const x = anchor.x * scale + delta.scale.value * base.tx.value + delta.tx.value;
     const y = anchor.y * scale + delta.scale.value * base.ty.value + delta.ty.value;
+    const opacity = measured ? decoratorOpacity(scale, fitScale.value, targetMinSide, minTargetSize, minZoom, maxZoom) : 0;
     return {
       transform: [{ translateX: x - halfWidth }, { translateY: y - halfHeight }],
-      opacity: measured ? 1 : 0,
+      opacity,
     };
-  }, [anchor.x, anchor.y, halfWidth, halfHeight, measured]);
+  }, [anchor.x, anchor.y, halfWidth, halfHeight, measured, targetMinSide, minTargetSize, minZoom, maxZoom]);
   return (
     <Animated.View style={[styles.overlayItem, style]} onLayout={onLayout}>
       {children}
@@ -176,7 +193,10 @@ export const SvgViewer = React.forwardRef<SvgViewerRef, SvgViewerProps>(function
   const baseScale = useSharedValue(1);
   const baseTx = useSharedValue(0);
   const baseTy = useSharedValue(0);
+  const fitScale = useSharedValue(1);
   const minDelta = useSharedValue(0.1);
+  // A fit or zoom requested before the viewer has measured itself; applied once the first fit exists.
+  const pendingRef = React.useRef<(() => void) | null>(null);
   const maxDelta = useSharedValue(10);
   const active = useSharedValue(0);
 
@@ -224,12 +244,18 @@ export const SvgViewer = React.forwardRef<SvgViewerRef, SvgViewerProps>(function
     baseTx.value = base.tx;
     baseTy.value = base.ty;
     const fit = fitRef.current ?? base;
+    fitScale.value = fit.scale;
     minDelta.value = (fit.scale * minZoom) / base.scale;
     maxDelta.value = (fit.scale * maxZoom) / base.scale;
     deltaScale.value = 1;
     deltaTx.value = 0;
     deltaTy.value = 0;
     latestCameraChange.current?.(base);
+    const pending = pendingRef.current;
+    if (pending) {
+      pendingRef.current = null;
+      pending();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [base, minZoom, maxZoom]);
 
@@ -396,8 +422,11 @@ export const SvgViewer = React.forwardRef<SvgViewerRef, SvgViewerProps>(function
 
   const fitTo = React.useCallback(
     (bounds: Rect, options: FitOptions | undefined) => {
-      const { viewport: size, padding: pad } = state.current;
-      if (!size) return;
+      const { viewport: size, padding: pad, base: resting } = state.current;
+      if (!size || !resting) {
+        pendingRef.current = () => fitTo(bounds, options);
+        return;
+      }
       let camera = fitCamera(bounds, size, options?.padding ?? pad);
       const fit = fitRef.current;
       if (fit && options?.maxZoom !== undefined && camera.scale > fit.scale * options.maxZoom) {
@@ -424,13 +453,19 @@ export const SvgViewer = React.forwardRef<SvgViewerRef, SvgViewerProps>(function
       fitToContent: (options) => fitTo(fitTarget(document, initialFit), options),
       zoomBy: (factor, focal, options) => {
         const size = state.current.viewport;
-        if (!size) return;
+        if (!size || !state.current.base) {
+          pendingRef.current = () => api.zoomBy(factor, focal, options);
+          return;
+        }
         const point = focal ?? { x: size.width / 2, y: size.height / 2 };
         settleTo(zoomCamera(currentCamera(), factor, point), options?.animated ?? true, options?.duration ?? DEFAULT_DURATION);
       },
       zoomTo: (scale, focal, options) => {
         const size = state.current.viewport;
-        if (!size) return;
+        if (!size || !state.current.base) {
+          pendingRef.current = () => api.zoomTo(scale, focal, options);
+          return;
+        }
         const camera = currentCamera();
         const point = focal ?? { x: size.width / 2, y: size.height / 2 };
         settleTo(zoomCamera(camera, scale / camera.scale, point), options?.animated ?? true, options?.duration ?? DEFAULT_DURATION);
@@ -468,13 +503,28 @@ export const SvgViewer = React.forwardRef<SvgViewerRef, SvgViewerProps>(function
     return chooseRenderRegion(base, viewport, expandRect(content, slack), { pixelRatio: PixelRatio.get(), ...regionOptions });
   }, [base, viewport, content, regionOptions]);
 
+  // In-SVG decorations cannot fade on the UI thread; their visibility follows the resting camera,
+  // so it is re-evaluated whenever a gesture settles.
   const svgDecorators = React.useMemo(() => {
-    const items = decoratorTargets.filter((t) => t.decorator.layer === 'svg');
+    if (!base) return undefined;
+    const fit = fitRef.current ?? base;
+    const items = decoratorTargets.filter(
+      (t) =>
+        t.decorator.layer === 'svg' &&
+        decoratorOpacity(
+          base.scale,
+          fit.scale,
+          Math.min(t.bbox.width, t.bbox.height),
+          t.decorator.minTargetSize,
+          t.decorator.minZoom,
+          t.decorator.maxZoom
+        ) > 0
+    );
     if (items.length === 0) return undefined;
     return items.map((t, index) => (
       <React.Fragment key={`d${t.decoratorIndex}-${t.node.id ?? index}`}>{t.decorator.render(t.node, t.bbox, index)}</React.Fragment>
     ));
-  }, [decoratorTargets]);
+  }, [decoratorTargets, base]);
 
   const overlayDecorators = React.useMemo(
     () => decoratorTargets.filter((t) => (t.decorator.layer ?? 'overlay') === 'overlay'),
@@ -502,7 +552,12 @@ export const SvgViewer = React.forwardRef<SvgViewerRef, SvgViewerProps>(function
                 <OverlayItem
                   key={`o${target.decoratorIndex}-${target.node.id ?? index}`}
                   anchor={target.anchor}
+                  targetMinSide={Math.min(target.bbox.width, target.bbox.height)}
+                  minTargetSize={target.decorator.minTargetSize}
+                  minZoom={target.decorator.minZoom}
+                  maxZoom={target.decorator.maxZoom}
                   base={{ scale: baseScale, tx: baseTx, ty: baseTy }}
+                  fitScale={fitScale}
                   delta={delta}
                 >
                   {target.decorator.render(target.node, target.bbox, index)}

@@ -28,6 +28,7 @@ export function ViewerScreen({ fixture }: { fixture: Fixture }): React.ReactElem
   const viewer = useRef<SvgViewerRef>(null);
   const [selection, setSelection] = useState<string[]>([]);
   const [mode, setMode] = useState<SelectionMode>('single');
+  const [badgesWhenLarge, setBadgesWhenLarge] = useState(false);
   const [camera, setCamera] = useState<Camera | null>(null);
   const [lastHit, setLastHit] = useState<string>('tap a region');
 
@@ -69,12 +70,14 @@ export function ViewerScreen({ fixture }: { fixture: Fixture }): React.ReactElem
       {
         match: (node: SvgNode) => node.id !== undefined && node.id in regions,
         layer: 'overlay' as const,
+        // "when large": a badge shows only once its region is at least 250 px wide on screen.
+        minTargetSize: badgesWhenLarge ? 250 : undefined,
         render: (node: SvgNode) => (
           <Badge label={regions[node.id ?? '']?.label ?? '?'} selected={node.id !== undefined && selection.includes(node.id)} />
         ),
       },
     ],
-    [regions, selection]
+    [regions, selection, badgesWhenLarge]
   );
 
   const regionCount = Object.keys(regions).length;
@@ -123,6 +126,13 @@ export function ViewerScreen({ fixture }: { fixture: Fixture }): React.ReactElem
             selected: {selection.length === 0 ? 'none' : selection.map((id) => `#${regions[id]?.label ?? '?'}`).join(', ')} · tap
             again to deselect
           </Text>
+          <Pressable
+            onPress={() => setBadgesWhenLarge((current) => !current)}
+            style={styles.modeButton}
+            accessibilityRole="button"
+          >
+            <Text style={styles.modeButtonText}>badges: {badgesWhenLarge ? 'when large' : 'always'}</Text>
+          </Pressable>
           <Pressable
             onPress={() => setMode((current) => (current === 'single' ? 'multiple' : 'single'))}
             style={styles.modeButton}
