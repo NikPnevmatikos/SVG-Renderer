@@ -10,6 +10,10 @@ interface RegionData {
   index: number;
 }
 
+/** always: every badge. when large: only while its region is at least 250 px wide. no overlap: hide colliding badges. */
+type BadgeMode = 'always' | 'when large' | 'no overlap';
+const BADGE_MODES: BadgeMode[] = ['always', 'when large', 'no overlap'];
+
 function Badge({ label, selected }: { label: string; selected: boolean }): React.ReactElement {
   return (
     <View style={[styles.badge, selected && styles.badgeSelected]}>
@@ -28,7 +32,7 @@ export function ViewerScreen({ fixture }: { fixture: Fixture }): React.ReactElem
   const viewer = useRef<SvgViewerRef>(null);
   const [selection, setSelection] = useState<string[]>([]);
   const [mode, setMode] = useState<SelectionMode>('single');
-  const [badgesWhenLarge, setBadgesWhenLarge] = useState(false);
+  const [badgeMode, setBadgeMode] = useState<BadgeMode>('always');
   const [camera, setCamera] = useState<Camera | null>(null);
   const [lastHit, setLastHit] = useState<string>('tap a region');
 
@@ -70,14 +74,14 @@ export function ViewerScreen({ fixture }: { fixture: Fixture }): React.ReactElem
       {
         match: (node: SvgNode) => node.id !== undefined && node.id in regions,
         layer: 'overlay' as const,
-        // "when large": a badge shows only once its region is at least 250 px wide on screen.
-        minTargetSize: badgesWhenLarge ? 250 : undefined,
+        minTargetSize: badgeMode === 'when large' ? 250 : undefined,
+        avoidOverlap: badgeMode === 'no overlap',
         render: (node: SvgNode) => (
           <Badge label={regions[node.id ?? '']?.label ?? '?'} selected={node.id !== undefined && selection.includes(node.id)} />
         ),
       },
     ],
-    [regions, selection, badgesWhenLarge]
+    [regions, selection, badgeMode]
   );
 
   const regionCount = Object.keys(regions).length;
@@ -96,6 +100,10 @@ export function ViewerScreen({ fixture }: { fixture: Fixture }): React.ReactElem
         selectedStyle={{ stroke: { type: 'color', value: '#16a34a' }, strokeWidth: 3, fillOpacity: 0.55 }}
         decorators={regionCount > 0 && regionCount <= 200 ? decorators : undefined}
         onElementPress={onElementPress}
+        onElementLongPress={(hit) => {
+          const data = hit.data as RegionData | undefined;
+          setLastHit(`long press on ${hit.node.id ?? hit.node.tag}${data ? ` (#${data.label})` : ''}`);
+        }}
         onBackgroundPress={(point, screenPoint) => {
           setLastHit(
             `background at ${point.x.toFixed(1)}, ${point.y.toFixed(1)} (screen ${screenPoint.x.toFixed(0)}, ${screenPoint.y.toFixed(0)}; ${describeCamera()})`
@@ -127,11 +135,11 @@ export function ViewerScreen({ fixture }: { fixture: Fixture }): React.ReactElem
             again to deselect
           </Text>
           <Pressable
-            onPress={() => setBadgesWhenLarge((current) => !current)}
+            onPress={() => setBadgeMode((current) => BADGE_MODES[(BADGE_MODES.indexOf(current) + 1) % BADGE_MODES.length])}
             style={styles.modeButton}
             accessibilityRole="button"
           >
-            <Text style={styles.modeButtonText}>badges: {badgesWhenLarge ? 'when large' : 'always'}</Text>
+            <Text style={styles.modeButtonText}>badges: {badgeMode}</Text>
           </Pressable>
           <Pressable
             onPress={() => setMode((current) => (current === 'single' ? 'multiple' : 'single'))}

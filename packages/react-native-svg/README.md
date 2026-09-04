@@ -85,24 +85,32 @@ export function FloorPlan({ xml, regions }: { xml: string; regions: Record<strin
 
 The app root must be wrapped in `GestureHandlerRootView` (see the gesture-handler docs).
 
-Pan, pinch and double-tap zoom run on the UI thread. Taps are converted to document
-coordinates and resolved through the core's hit testing to the nearest interactive ancestor,
-so they work identically on every backend. The drawing is rasterized for the resting camera
-(whole content while it fits a pixel budget, an overscanned viewport region beyond that) and
-re-anchored after each gesture, so zoomed content is crisp again.
+Pan, pinch and double-tap zoom run on the UI thread; a released pan glides on with the finger's
+velocity and stops inside the content bounds, and a camera pushed past the bounds eases back.
+Taps are converted to document coordinates and resolved through the core's hit testing to the
+nearest interactive ancestor, so they work identically on every backend. The drawing is
+rasterized for the resting camera (whole content while it fits a pixel budget, an overscanned
+viewport region beyond that) and re-anchored when a gesture ends and whenever the fingers rest
+for a moment mid-gesture, so a long pinch stays crisp. Each layer positions itself against the
+live camera and the previous layer stays until the new one has laid out, so re-anchoring never
+flashes or jumps.
 
 | Prop | Type | Description |
 |---|---|---|
 | `document` | `SvgDocument` | Parsed with `parseSvg`. |
 | `interactive` | `string \| (node) => boolean \| Record<id, data>` | Which nodes respond to taps. A record also attaches its values as `node.data`. |
 | `onElementPress` | `(hit: ElementHit) => void` | Nearest interactive ancestor of the topmost shape under the tap. |
+| `onElementLongPress` | `(hit: ElementHit) => void` | Long press (400 ms) on an interactive element; does not change the selection. |
+| `pressedStyle`, `pressedDuration` | `StyleOverride | (node) => StyleOverride`, `number` | Brief highlight of the tapped element for touch feedback. Off unless given; 180 ms. |
+| `inertia` | `boolean` | Pan glides after release. Default true. |
+| `accessibility` | `(node, data) => { label, hint? } | null` | Screen-reader targets for interactive elements; activating one acts like a tap. |
 | `onBackgroundPress` | `(point, screenPoint) => void` | Tap that hit nothing interactive. |
 | `selectionMode` | `'single' \| 'multiple' \| 'none'` | Built-in selection by id. `single` (default): tap selects, tapping the selected element again deselects it. `multiple`: taps toggle membership. |
 | `selection`, `defaultSelection`, `onSelectionChange` | `string[]` | Controlled or uncontrolled selection; the callback also receives the `ElementHit` (null for background taps and ref calls). |
 | `selectedStyle` | `StyleOverride \| (node) => StyleOverride` | Highlight for selected elements. Default green stroke, width 3. |
 | `clearSelectionOnBackgroundPress` | `boolean` | Default true. |
 | `elementStyles` | `Record<idOrSelector, StyleOverride>` | Restyle any nodes; wins over `selectedStyle`. |
-| `decorators` | `Decorator[]` | Badges/labels anchored to matching nodes, in the SVG (`layer: 'svg'`) or as fixed-size overlay views (`layer: 'overlay'`). `minTargetSize` hides a decoration while its element is drawn smaller than that many pixels (labels of small rooms appear as the user zooms in, with a short fade); `minZoom` / `maxZoom` limit it to a zoom range relative to the initial fit. |
+| `decorators` | `Decorator[]` | Badges/labels anchored to matching nodes, in the SVG (`layer: 'svg'`) or as fixed-size overlay views (`layer: 'overlay'`). `minTargetSize` hides a decoration while its element is drawn smaller than that many pixels (labels of small rooms appear as the user zooms in, with a short fade); `minZoom` / `maxZoom` limit it to a zoom range relative to the initial fit. `avoidOverlap` hides the lower-`priority` label of two that would collide on screen (default priority: bounding-box area), re-evaluated whenever the camera settles. |
 | `controls` | `boolean \| ViewerControlsOptions` | Built-in buttons. Default `true`, top-right. |
 | `renderControls` | `(api) => ReactNode` | Replace the built-in buttons with your own. |
 | `initialFit` | `'content' \| 'viewBox' \| Rect` | What to show first. Default `content`. |
@@ -112,10 +120,14 @@ re-anchored after each gesture, so zoomed content is crisp again.
 | `hitMode` | `'painted' \| 'geometry'` | `geometry` makes unfilled outlines tappable inside. Default `geometry`. |
 | `doubleTapZoom` | `number` | Factor per double tap, `0` disables. Default `2`. |
 | `backend` | `ViewerBackend` | Rendering component; defaults to the react-native-svg backend. |
-| `onCameraChange` | `(camera) => void` | Called when a gesture or animation settles. |
+| `onCameraChange` | `(camera) => void` | Called when the resting camera changes: after a gesture or animation settles and after a mid-gesture re-anchor. |
 | `children` | `ReactNode` | App views above the drawing that do not move with the camera. |
 
-Ref: `fitToElement(id, opts)`, `fitToBounds(rect, opts)`, `fitToContent(opts)`, `zoomBy(factor, focal?, opts)`,
+Ref: `fitToElement(id, opts)`, `fitToElements(ids, opts)`, `fitToBounds(rect, opts)`, `fitToContent(opts)`, `zoomBy(factor, focal?, opts)`,
 `zoomTo(scale, focal?, opts)`, `getCamera()`, `screenToSvg(point)`, `svgToScreen(point)`, `getSelection()`,
 `setSelection(ids)`, `select(id)`, `deselect(id)`, `toggleSelection(id)`, `clearSelection()`. Fit and zoom calls made before the viewer
  has measured itself (for example right after mounting it for a new floor) are applied as soon as it has.
+
+Custom backends receive `camera` (the camera the layer is laid out for), `live` (the live camera as
+shared values) and `onReady`; they display the layer with the transform that maps `camera` onto
+`live` and call `onReady` once laid out, so the viewer can drop the layer being replaced.

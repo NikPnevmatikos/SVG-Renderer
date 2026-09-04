@@ -1,6 +1,9 @@
 export { SvgViewer } from './SvgViewer';
 export { ReactNativeSvgBackend } from './backends/reactNativeSvg';
 export { ViewerControls } from './controls';
+export { resolveOverlaps } from './collision';
+export type { LabelCandidate } from './collision';
+export { decoratorOpacity } from './visibility';
 export type { ViewerControlsOptions, ControlsPosition } from './controls';
 export {
   resolveInteractive,
@@ -23,4 +26,5 @@ export type {
   Decorator,
   FitOptions,
   SelectionMode,
+  ElementAccessibility,
 } from './types';

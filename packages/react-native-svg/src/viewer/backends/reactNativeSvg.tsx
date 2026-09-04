@@ -5,31 +5,43 @@ import { SvgRenderer } from '../../SvgRenderer';
 import type { ViewerBackendProps } from '../types';
 
 /**
- * react-native-svg backend for the viewer. The drawing is rasterized once per resting camera
- * for the chosen region and moved with the live gesture delta as a GPU transform; the viewer
- * re-anchors (re-renders for the new resting camera) when a gesture ends, so content is crisp
- * again after every zoom.
+ * react-native-svg backend for the viewer. The drawing is rasterized once for the layer's
+ * camera over the chosen region; every frame the layer is displayed with the GPU transform
+ * that maps that camera onto the live one, so gestures never re-render and a layer stays
+ * correctly placed whether or not it is the newest. The viewer mounts a new layer whenever it
+ * re-anchors (after a gesture, and during pauses of a long pinch or pan) and drops the old one
+ * once this layer reports `onReady`.
  */
 export function ReactNativeSvgBackend({
   document,
   planOptions,
   overrides,
-  delta,
+  camera,
+  live,
   region,
+  onReady,
   children,
 }: ViewerBackendProps): React.ReactElement {
   const animatedStyle = useAnimatedStyle(() => {
     'worklet';
+    const scale = live.scale.value / camera.scale;
     return {
-      transform: [{ translateX: delta.tx.value }, { translateY: delta.ty.value }, { scale: delta.scale.value }],
+      transform: [
+        { translateX: live.tx.value - camera.tx * scale },
+        { translateY: live.ty.value - camera.ty * scale },
+        { scale },
+      ],
     };
-  });
+  }, [camera.scale, camera.tx, camera.ty]);
   const svgStyle = React.useMemo(
     () => ({ position: 'absolute' as const, left: region.x, top: region.y }),
     [region.x, region.y]
   );
+  const handleLayout = React.useCallback(() => {
+    onReady?.();
+  }, [onReady]);
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, styles.layer, animatedStyle]}>
+    <Animated.View style={[StyleSheet.absoluteFill, styles.layer, animatedStyle]} onLayout={handleLayout}>
       <SvgRenderer
         source={{ document }}
         planOptions={planOptions}

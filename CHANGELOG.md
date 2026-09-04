@@ -8,6 +8,28 @@ All notable changes to this project are documented here. The format follows
 
 Nothing yet.
 
+## 0.2.0 - 2026-09-04
+
+svg-renderer only; svg-core is unchanged at 0.1.0.
+
+### Added
+
+- `svg-renderer` viewer: pan inertia (`inertia`, on by default) that glides to a stop inside the
+  content bounds and an eased return when a gesture ends outside them; re-anchoring during
+  gesture pauses, so a long pinch stays crisp; `onElementLongPress`; `pressedStyle` /
+  `pressedDuration` touch feedback; `accessibility` screen-reader targets for interactive
+  elements; `fitToElements(ids)` on the ref; decorator `avoidOverlap` / `priority` that hide
+  colliding overlay labels by priority whenever the camera settles.
+- Example: a "Booths 150" fixture (dense exhibition hall) and a three-way badge mode toggle
+  (always / when large / no overlap); long presses are reported in the status line.
+
+### Changed
+
+- `svg-renderer` viewer: the live camera is owned by the UI thread and every raster layer
+  positions itself against it, with the previous layer kept until the new one has laid out.
+  Re-anchoring no longer jumps or flashes. Backend contract (breaking for custom backends):
+  `ViewerBackendProps` now carries `camera`, `live` and `onReady` instead of `base` and `delta`.
+
 ## 0.1.1 - 2026-09-03
 
 svg-renderer only; svg-core is unchanged at 0.1.0.

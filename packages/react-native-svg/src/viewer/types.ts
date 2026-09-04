@@ -16,25 +16,33 @@ import type {
 import type { StyleOverride } from '../mapping';
 import type { ViewerControlsOptions } from './controls';
 
-/** Live gesture delta, applied after the resting camera: `screen = delta(base(user))`. */
+/** The live camera on the UI thread, `screen = user * scale + t`, updated by gestures and animations every frame. */
 export interface SharedCamera {
   scale: SharedValue<number>;
   tx: SharedValue<number>;
   ty: SharedValue<number>;
 }
 
-/** Everything a rendering backend receives from the viewer. Backends never do hit testing. */
+/**
+ * Everything a rendering backend receives from the viewer. A backend lays the drawing out for
+ * `camera` once and, every frame, displays it with the transform that maps `camera` onto `live`
+ * (`scale = live.scale / camera.scale`, `translate = live.t - camera.t * scale`). The viewer may
+ * keep two backends mounted while it re-anchors; each positions itself correctly on its own,
+ * so the swap is invisible. Backends never do hit testing.
+ */
 export interface ViewerBackendProps {
   document: SvgDocument;
   planOptions: PlanOptions;
   overrides?: ReadonlyMap<SvgNode, StyleOverride>;
-  /** Camera at rest; the backend lays content out for it. */
-  base: Camera;
-  /** Live gesture delta on the UI thread. */
-  delta: SharedCamera;
+  /** Camera this layer was laid out for. */
+  camera: Camera;
+  /** The live camera, read on the UI thread. */
+  live: SharedCamera;
   viewport: Size;
-  /** Region a rasterizing backend should draw for `base` (whole content while it fits a pixel budget). */
+  /** Region a rasterizing backend should draw for `camera` (whole content while it fits a pixel budget). */
   region: RenderRegion;
+  /** Call once the layer is laid out; the viewer then drops the layer it replaced. */
+  onReady?: () => void;
   /** Extra react-native-svg children in document coordinates (in-SVG decorators). */
   children?: ReactNode;
 }
@@ -77,7 +85,21 @@ export interface Decorator {
   minZoom?: number;
   /** Show the decoration only while the zoom relative to the initial fit is at most this. */
   maxZoom?: number;
+  /**
+   * Overlay decorations only: when two decorations would overlap on screen, hide the one with
+   * the lower `priority` (ties keep the earlier node). Re-evaluated whenever the camera settles or
+   * re-anchors, so labels never pile up on dense drawings. Default false.
+   */
+  avoidOverlap?: boolean;
+  /** Priority for `avoidOverlap`. Default: the area of the node's bounding box, so larger elements keep their labels. */
+  priority?: number | ((node: SvgNode) => number);
   render: (node: SvgNode, bbox: Rect, index: number) => ReactNode;
+}
+
+/** Screen-reader description of an interactive element (see `SvgViewerProps.accessibility`). */
+export interface ElementAccessibility {
+  label: string;
+  hint?: string;
 }
 
 export interface FitOptions {
@@ -99,6 +121,8 @@ export type SelectionMode = 'none' | 'single' | 'multiple';
 
 export interface SvgViewerRef {
   fitToElement(id: string, options?: FitOptions): boolean;
+  /** Fit the union of several elements' bounds; false when none of the ids exists. */
+  fitToElements(ids: readonly string[], options?: FitOptions): boolean;
   fitToBounds(bounds: Rect, options?: FitOptions): void;
   fitToContent(options?: FitOptions): void;
   zoomBy(factor: number, focal?: Point, options?: FitOptions): void;
@@ -124,8 +148,23 @@ export interface SvgViewerProps {
   elementStyles?: Readonly<Record<string, StyleOverride>>;
   decorators?: readonly Decorator[];
   onElementPress?: (hit: ElementHit) => void;
+  /** Long press (400 ms without moving) on an interactive element. Does not change the selection. */
+  onElementLongPress?: (hit: ElementHit) => void;
   onBackgroundPress?: (point: Point, screenPoint: Point) => void;
+  /** Called whenever the resting camera changes: after a gesture or animation settles and after a mid-gesture re-anchor. */
   onCameraChange?: (camera: Camera) => void;
+  /** Brief highlight of the tapped element, for touch feedback. Off unless given. */
+  pressedStyle?: StyleOverride | ((node: SvgNode) => StyleOverride);
+  /** How long `pressedStyle` stays, in ms. Default 180. */
+  pressedDuration?: number;
+  /** Pan keeps moving with the finger's velocity after release and glides to a stop within the content bounds. Default true. */
+  inertia?: boolean;
+  /**
+   * Make interactive elements reachable by screen readers: each one gets an invisible
+   * accessible target that reads `label` / `hint` and, when activated, fires `onElementPress`
+   * (and the selection change) exactly like a tap. Return null to skip an element.
+   */
+  accessibility?: (node: SvgNode, data: unknown) => ElementAccessibility | null | undefined;
   /** Built-in selection of interactive elements (by id). Default `single`. */
   selectionMode?: SelectionMode;
   /** Controlled selection. Omit to let the viewer keep the selection itself. */

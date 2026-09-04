@@ -175,6 +175,41 @@ export function generateGrid(rows: number, cols: number): string {
   return parts.join('\n');
 }
 
+/**
+ * Exhibition hall: a dense grid of numbered booths (`booth-N`) inside a wall, an aisle every
+ * five rows. Every booth is interactive in the viewer, so it exercises badge visibility limits,
+ * overlap avoidance and hit testing on small targets.
+ */
+export function generateBooths(rows: number, cols: number): string {
+  const booth = { width: 40, height: 28 };
+  const gap = 6;
+  const aisle = 22;
+  const margin = 30;
+  const aisleEvery = 5;
+  const aisles = Math.floor((rows - 1) / aisleEvery);
+  const width = margin * 2 + cols * (booth.width + gap) - gap;
+  const height = margin * 2 + rows * (booth.height + gap) - gap + aisles * aisle;
+  const fills = ['#dbeafe', '#dcfce7', '#fef3c7', '#fde2e4', '#ede9fe'];
+  const parts: string[] = [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}">`,
+    `<rect width="${width}" height="${height}" fill="#f8fafc"/>`,
+    `<rect x="${margin / 2}" y="${margin / 2}" width="${width - margin}" height="${height - margin}" fill="none" stroke="#2b2f36" stroke-width="3"/>`,
+    '<g id="booths" stroke="#334155" stroke-width="0.75">',
+  ];
+  let number = 1;
+  for (let r = 0; r < rows; r++) {
+    const y = margin + r * (booth.height + gap) + Math.floor(r / aisleEvery) * aisle;
+    for (let c = 0; c < cols; c++) {
+      const x = margin + c * (booth.width + gap);
+      const fill = fills[(r + c) % fills.length];
+      parts.push(`<rect id="booth-${number}" x="${x}" y="${y}" width="${booth.width}" height="${booth.height}" fill="${fill}"/>`);
+      number++;
+    }
+  }
+  parts.push('</g>', '</svg>');
+  return parts.join('\n');
+}
+
 export const FIXTURES: Fixture[] = [
   {
     name: 'Floor plan',
@@ -214,6 +249,12 @@ export const FIXTURES: Fixture[] = [
     description:
       'A symbol with its own viewBox reused at three sizes through currentColor, a defs group reused with transform and opacity, an in-tree row duplicated with use, and one missing target (warning expected).',
     xml: useSymbol,
+  },
+  {
+    name: 'Booths 150',
+    description:
+      'Exhibition hall with 150 small interactive booths. In Viewer mode every booth carries a badge: try the badge modes to see size-based visibility and overlap avoidance.',
+    xml: generateBooths(15, 10),
   },
   {
     name: 'Grid 1k',
