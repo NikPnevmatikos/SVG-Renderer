@@ -6,7 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## Unreleased
 
-Nothing yet.
+### Added
+
+- `svg-renderer/web`: the renderer and the pan/zoom viewer for React DOM, sharing the parse,
+  plan, hit-testing, selection, decorator and controls model with the native entry. Pointer
+  events drive pan, pinch, tap, double tap and long press; `wheelZoom` zooms about the cursor;
+  inertia, out-of-bounds return, re-anchoring during pauses, `avoidOverlap` labels, `pressedStyle`
+  and keyboard/screen-reader targets all work as on native. Vite example in `example-web`.
+
+### Changed
+
+- `svg-renderer`: `react-native` and `react-native-svg` are optional peer dependencies, so web
+  projects can install the package without them (native apps still need them; a missing
+  `react-native-svg` now surfaces at runtime instead of at install).
+- `useSvgDocument` moved to a platform-neutral module; it is still exported from the main entry.
 
 ## 0.2.0 - 2026-09-04
 

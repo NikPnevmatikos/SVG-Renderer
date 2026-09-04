@@ -1,0 +1,24 @@
+{
+  "name": "example-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 8083 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 8083"
+  },
+  "dependencies": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "svg-core": "*",
+    "svg-renderer": "*"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.4",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.9.2",
+    "vite": "^7.0.0"
+  }
+}
