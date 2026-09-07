@@ -6,6 +6,13 @@
     "module": "CommonJS",
     "moduleResolution": "Node10"
   },
-  "include": ["src/**/*"],
-  "exclude": ["dist", "**/*.test.ts", "**/*.test.tsx"]
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "dist",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "src/web/**"
+  ]
 }

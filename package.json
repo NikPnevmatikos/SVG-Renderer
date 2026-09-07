@@ -15,7 +15,8 @@
   },
   "workspaces": [
     "packages/*",
-    "example"
+    "example",
+    "example-web"
   ],
   "engines": {
     "node": ">=20"
@@ -29,6 +30,7 @@
     "clean": "npm run clean --workspaces --if-present",
     "fixtures:generate": "node benchmarks/generate-fixtures.js",
     "bench": "node benchmarks/parse-bench.js",
-    "example:web": "npm run web -w example"
+    "example:web": "npm run web -w example",
+    "example:web:dom": "npm run dev -w example-web"
   }
 }

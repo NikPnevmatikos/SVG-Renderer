@@ -1,6 +1,6 @@
 import { findAncestor, nodeBBox, type Rect, type SvgDocument, type SvgNode } from 'svg-core';
 import type { StyleOverride } from '../mapping';
-import type { Decorator, InteractiveSpec, SelectionMode } from './types';
+import type { Decorator, InteractiveSpec, SelectionMode } from './shared';
 
 /** Selection after tapping `id`: single mode toggles the one element, multiple mode toggles membership. */
 export function nextSelection(mode: SelectionMode, current: readonly string[], id: string): string[] {

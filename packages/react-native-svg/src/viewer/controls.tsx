@@ -1,8 +1,8 @@
 import * as React from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
-import type { SvgViewerRef } from './types';
+import type { ControlsPosition, SvgViewerRef } from './shared';
 
-export type ControlsPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+export type { ControlsPosition };
 
 export interface ViewerControlsOptions {
   /** Corner of the viewer. Default `top-right`. */

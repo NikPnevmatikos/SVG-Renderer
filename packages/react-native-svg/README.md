@@ -19,7 +19,8 @@ For the viewer, add the gesture libraries (already present in most Expo apps):
 npm install react-native-gesture-handler react-native-reanimated
 ```
 
-They are optional peers: apps that only render SVG never load them.
+They are optional peers: apps that only render SVG never load them. `react-native` and
+`react-native-svg` are optional peers too, so a web project can install the package without them.
 
 `svg-renderer` re-exports the whole `svg-core` API, so a React Native app needs only this package.
 Install [`svg-core`](https://github.com/NikPnevmatikos/SVG-Renderer/tree/main/packages/core) on its own for Node, servers or the CLI.
@@ -56,6 +57,8 @@ const doc = useMemo(() => parseSvg(xml), [xml]);
 | `fallback` | `ReactNode` | Rendered while a `uri` source loads or after an error. |
 
 ## Viewer
+
+The same component exists for React DOM as `svg-renderer/web`; see [Web](#web) below.
 
 ```tsx
 import { useMemo, useRef, useState } from 'react';
@@ -131,3 +134,28 @@ Ref: `fitToElement(id, opts)`, `fitToElements(ids, opts)`, `fitToBounds(rect, op
 Custom backends receive `camera` (the camera the layer is laid out for), `live` (the live camera as
 shared values) and `onReady`; they display the layer with the transform that maps `camera` onto
 `live` and call `onReady` once laid out, so the viewer can drop the layer being replaced.
+
+## Web
+
+```tsx
+import { parseSvg, SvgRenderer } from 'svg-renderer/web';
+import { SvgViewer, type SvgViewerRef } from 'svg-renderer/web';
+
+<SvgRenderer source={{ xml }} width="100%" height={240} />
+<SvgViewer document={parseSvg(xml)} style={{ height: 480 }} interactive={rooms} onElementPress={openRoom} />
+```
+
+`svg-renderer/web` renders with React DOM and imports nothing from React Native. It goes through the
+same parse, cascade, normalize and plan pipeline, so a document draws the same on both platforms,
+and the viewer has the same props and ref API as the native one: `interactive`, selection,
+`decorators` (return DOM elements; `layer: 'svg'` decorators return SVG elements such as `<circle>`),
+`minTargetSize` / `avoidOverlap`, `fitToElement`, `onElementLongPress`, `pressedStyle`,
+`accessibility` (focusable, screen-reader labelled targets) and the built-in controls. Differences:
+`style` and `className` are DOM props, `wheelZoom` (default true) zooms about the cursor with the
+mouse wheel or a trackpad pinch, touch pinch and drag come from pointer events, and while
+`doubleTapZoom` is on a single tap waits 250 ms for a possible second tap (set it to `0` for
+instant taps). `svg-core` is re-exported, so one import covers parsing too.
+
+Expo web apps can keep using `svg-renderer/viewer` through react-native-web; `svg-renderer/web` is
+for plain React apps (Vite, Next.js, Create React App). The `example-web` workspace is a Vite app
+using it: `npm run example:web:dom`.

@@ -1,0 +1,6 @@
+{
+  "name": "svg-renderer-web-entry",
+  "private": true,
+  "main": "../dist/web/index.js",
+  "types": "../dist/web/index.d.ts"
+}
