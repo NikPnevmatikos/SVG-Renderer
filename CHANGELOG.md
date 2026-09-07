@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.3.0 - 2026-09-04
+
+svg-renderer only; svg-core is unchanged at 0.1.0.
+
 ### Added
 
 - `svg-renderer/web`: the renderer and the pan/zoom viewer for React DOM, sharing the parse,
