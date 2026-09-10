@@ -51,16 +51,33 @@ export function subpathSignedArea(segments: readonly PathSegment[]): number {
   return area;
 }
 
-/** Split a segment list into subpaths, each starting with its `M`. */
+/**
+ * Split a segment list into subpaths, each starting with its `M`. A drawing command that
+ * follows a closepath without a moveto starts a new subpath at the closed one's start point,
+ * as it does when rendered, so a synthetic `M` is inserted there.
+ */
 export function splitSubpaths(segments: readonly PathSegment[]): PathSegment[][] {
   const subpaths: PathSegment[][] = [];
   let current: PathSegment[] = [];
+  let startX = 0;
+  let startY = 0;
+  let closed = false;
   for (const seg of segments) {
-    if (seg.type === 'M' && current.length > 0) {
+    if (seg.type === 'M') {
+      if (current.length > 0) subpaths.push(current);
+      current = [seg];
+      startX = seg.x;
+      startY = seg.y;
+      closed = false;
+      continue;
+    }
+    if (closed && seg.type !== 'Z') {
       subpaths.push(current);
-      current = [];
+      current = [{ type: 'M', x: startX, y: startY }];
+      closed = false;
     }
     current.push(seg);
+    if (seg.type === 'Z') closed = true;
   }
   if (current.length > 0) subpaths.push(current);
   return subpaths;
@@ -115,8 +132,10 @@ export function reverseSubpath(subpath: readonly PathSegment[]): PathSegment[] {
 }
 
 /**
- * Make every subpath run in the positive direction so that, under the nonzero rule, the
- * union of several shapes merged into one path paints exactly what the separate shapes did.
+ * Make every subpath run in the positive direction. Right for outlines whose subpaths all run
+ * the same way: under the nonzero rule their union then paints exactly what the separate
+ * shapes did. Wrong for outlines with holes, whose counters run opposite to the outer contour
+ * on purpose; use `orientForMerge`, which leaves those alone.
  */
 export function normalizeWinding(segments: readonly PathSegment[]): PathSegment[] {
   const out: PathSegment[] = [];
@@ -125,4 +144,43 @@ export function normalizeWinding(segments: readonly PathSegment[]): PathSegment[
     else out.push(...subpath);
   }
   return out;
+}
+
+export interface MergeOrientation {
+  /** The outline to merge: every subpath positive when that is safe, otherwise as authored. */
+  path: readonly PathSegment[];
+  /**
+   * True when subpaths with area run in both directions. The nonzero rule then relies on their
+   * relative direction for the holes (glyph counters, rings): nothing was reversed, and other
+   * members of a merged path must not overlap this outline or the windings would cancel.
+   */
+  mixed: boolean;
+}
+
+/**
+ * Prepare one filled outline for merging into a nonzero-filled path. When all of its subpaths
+ * run the same way they are turned positive, so overlapping members of the merged path union
+ * exactly as the separate shapes did. When they run both ways, reversing any of them would
+ * fill the holes, so the outline is returned as authored and flagged `mixed`.
+ */
+export function orientForMerge(segments: readonly PathSegment[]): MergeOrientation {
+  const subpaths = splitSubpaths(segments);
+  let positive = false;
+  let negative = false;
+  const areas: number[] = [];
+  for (const subpath of subpaths) {
+    const area = subpathSignedArea(subpath);
+    areas.push(area);
+    if (area > 0) positive = true;
+    else if (area < 0) negative = true;
+  }
+  if (positive && negative) return { path: segments, mixed: true };
+  if (!negative) return { path: segments, mixed: false };
+  const path: PathSegment[] = [];
+  for (let i = 0; i < subpaths.length; i++) {
+    const subpath = subpaths[i]!;
+    if (areas[i]! < 0) for (const seg of reverseSubpath(subpath)) path.push(seg);
+    else for (const seg of subpath) path.push(seg);
+  }
+  return { path, mixed: false };
 }

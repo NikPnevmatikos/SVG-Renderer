@@ -239,6 +239,11 @@ Batching rules:
   else is static.
 - Text and images are never batched. Groups with `opacity < 1`, `clip-path` or `mask`
   become `group-begin`/`group-end` boundaries; batching happens inside them.
+- Filled shapes merge under the nonzero rule with every subpath turned positive, so
+  overlapping members union exactly. Outlines whose subpaths wind both ways (text converted
+  to outlines, rings) rely on that difference for their holes: they keep their winding and,
+  like fill-and-stroke shapes, only merge with shapes they do not overlap.
+
 - Batches carry their source nodes so hit testing, debugging and the `inspect` CLI can map
   a drawn unit back to elements.
 

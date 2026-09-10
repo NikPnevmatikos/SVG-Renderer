@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Hand-written. Text converted to outlines, the way design tools export labels: every glyph is
+  a <path> whose counters (the holes in O, A, B, D, 8) are separate subpaths running opposite
+  to the outer contour, so the nonzero fill rule leaves them empty. Both winding conventions
+  appear: the first word has positive outer contours, the second negative ones.
+
+  All white shapes share one fill so the planner wants to merge them into a single path. The
+  ring/rect pairs at the right overlap on purpose: a positively wound rect merged over a
+  negatively wound ring would cancel to zero and punch a hole where the separate shapes paint.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="320" height="200">
+  <rect width="320" height="200" fill="#e4e4ee"/>
+
+  <!-- Label 1: "OAB", outer contours positive, counters negative -->
+  <rect x="12" y="16" width="112" height="50" fill="#c98aa0"/>
+  <path fill="#fff" d="M20 25 L44 25 L44 55 L20 55 Z M26 31 L26 49 L38 49 L38 31 Z"/>
+  <path fill="#fff" d="M50 55 L60 25 L70 25 L80 55 L73 55 L70.5 47 L59.5 47 L57 55 Z M61.5 41 L68.5 41 L65 30 Z"/>
+  <path fill="#fff" d="M86 25 L102 25 Q112 25 112 33 Q112 39 107 40 Q113 41 113 48 Q113 55 102 55 L86 55 Z
+                       M92 30 L92 37 L100 37 Q105 37 105 33.5 Q105 30 100 30 Z
+                       M92 42 L92 50 L101 50 Q107 50 107 46 Q107 42 101 42 Z"/>
+
+  <!-- Label 2: "D8", outer contours negative, counters positive -->
+  <rect x="124" y="16" width="76" height="50" fill="#5b8dd9"/>
+  <path fill="#fff" d="M130 25 L130 55 L142 55 Q156 55 156 40 Q156 25 142 25 Z
+                       M136 31 L142 31 Q150 31 150 40 Q150 49 142 49 L136 49 Z"/>
+  <path fill="#fff" d="M162 40 Q162 55 176 55 Q190 55 190 40 Q190 25 176 25 Q162 25 162 40 Z
+                       M170 33 Q170 29 176 29 Q182 29 182 33 Q182 37 176 37 Q170 37 170 33 Z
+                       M170 47 Q170 43 176 43 Q182 43 182 47 Q182 51 176 51 Q170 51 170 47 Z"/>
+
+  <!-- Nested counters: a ring inside a ring's hole, all in one path -->
+  <rect x="12" y="76" width="60" height="60" fill="#3fa7c9"/>
+  <path fill="#fff" d="M18 82 L66 82 L66 130 L18 130 Z
+                       M24 88 L24 124 L60 124 L60 88 Z
+                       M32 96 L52 96 L52 116 L32 116 Z
+                       M38 102 L38 110 L46 110 L46 102 Z"/>
+
+  <!-- Uniform multi-subpath outline: two disjoint squares, both negative, over a positive rect -->
+  <rect x="84" y="76" width="116" height="60" fill="#3fa7c9"/>
+  <rect x="100" y="90" width="40" height="30" fill="#fff"/>
+  <path fill="#fff" d="M90 84 L90 104 L110 104 L110 84 Z M130 100 L130 128 L160 128 L160 100 Z"/>
+
+  <!-- Overlap A: negatively wound ring first, then a same-fill rect across its band -->
+  <rect x="210" y="16" width="100" height="90" fill="#7a6fb0"/>
+  <path fill="#fff" d="M216 22 L216 72 L266 72 L266 22 Z M228 34 L254 34 L254 60 L228 60 Z"/>
+  <rect x="250" y="50" width="50" height="50" fill="#fff"/>
+
+  <!-- Overlap B: same-fill rect first, then a negatively wound ring across it -->
+  <rect x="210" y="112" width="100" height="80" fill="#7a6fb0"/>
+  <rect x="216" y="120" width="40" height="40" fill="#fff"/>
+  <path fill="#fff" d="M240 130 L240 186 L296 186 L296 130 Z M252 142 L284 142 L284 174 L252 174 Z"/>
+
+  <!-- Degenerate subpaths: a lone moveto and an unclosed contour in a filled path -->
+  <rect x="12" y="146" width="188" height="46" fill="#c98aa0"/>
+  <path fill="#fff" d="M20 152 M30 152 L60 152 L60 186 L30 186 M70 152 L100 152 L100 186 L70 186 Z M78 160 L78 178 L92 178 L92 160 Z"/>
+  <path fill="#fff" d="M110 152 L190 152 L190 186 L110 186 Z M120 160 L120 178 L140 178 L140 160 Z M150 160 L150 178 L180 178 L180 160 Z"/>
+</svg>

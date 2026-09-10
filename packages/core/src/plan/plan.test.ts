@@ -1,3 +1,5 @@
+import { flattenPath } from '../geometry/flatten';
+import { pointInPolygons } from '../geometry/hit';
 import { pathBBox, serializePathData } from '../geometry/path';
 import { splitSubpaths, subpathSignedArea } from '../geometry/winding';
 import { parseSvg } from '../parse';
@@ -214,6 +216,54 @@ describe('style batching', () => {
     for (const subpath of subpaths) expect(subpathSignedArea(subpath)).toBeGreaterThan(0);
     // The second polygon was authored in the opposite direction and is reversed in place.
     expect(serializePathData(merged.path)).toBe('M0 0L10 0L10 10L0 10ZM15 5L15 15L5 15L5 5Z');
+  });
+
+  it('keeps the counters of merged outlines open', () => {
+    // Two "O" glyphs converted to outlines, one per winding convention, and a plain square.
+    const doc = parseSvg(`
+      <svg>
+        <path d="M0 0 L10 0 L10 10 L0 10 Z M3 3 L3 7 L7 7 L7 3 Z"/>
+        <path d="M20 0 L20 10 L30 10 L30 0 Z M23 3 L27 3 L27 7 L23 7 Z"/>
+        <rect x="40" width="10" height="10"/>
+      </svg>`);
+    const plan = doc.plan();
+    expect(plan.units.map((u) => u.kind)).toEqual(['batch']);
+    const merged = batch(plan.units[0]);
+    expect(merged.sources).toHaveLength(3);
+    // The glyph outlines go in as authored, counters and all.
+    expect(
+      serializePathData(merged.path).startsWith('M0 0L10 0L10 10L0 10ZM3 3L3 7L7 7L7 3ZM20 0L20 10L30 10L30 0ZM23 3L27 3L27 7L23 7Z')
+    ).toBe(true);
+    const polygons = flattenPath(merged.path, 0.01);
+    expect(pointInPolygons(polygons, { x: 1, y: 1 }, 'nonzero')).toBe(true);
+    expect(pointInPolygons(polygons, { x: 5, y: 5 }, 'nonzero')).toBe(false);
+    expect(pointInPolygons(polygons, { x: 21, y: 1 }, 'nonzero')).toBe(true);
+    expect(pointInPolygons(polygons, { x: 25, y: 5 }, 'nonzero')).toBe(false);
+    expect(pointInPolygons(polygons, { x: 45, y: 5 }, 'nonzero')).toBe(true);
+  });
+
+  it('merges an outline with counters only with shapes it does not overlap', () => {
+    // A positively wound square over a negatively wound ring would cancel to a hole.
+    const ringFirst = parseSvg(`
+      <svg>
+        <path d="M0 0 L0 10 L10 10 L10 0 Z M2 2 L8 2 L8 8 L2 8 Z"/>
+        <rect x="8" y="8" width="10" height="10"/>
+      </svg>`);
+    expect(ringFirst.plan().units.map((u) => u.kind)).toEqual(['shape', 'shape']);
+    const squareFirst = parseSvg(`
+      <svg>
+        <rect width="10" height="10"/>
+        <path d="M8 8 L8 18 L18 18 L18 8 Z M10 10 L16 10 L16 16 L10 16 Z"/>
+      </svg>`);
+    expect(squareFirst.plan().units.map((u) => u.kind)).toEqual(['shape', 'shape']);
+    const apart = parseSvg(`
+      <svg>
+        <rect width="10" height="10"/>
+        <path d="M20 0 L20 10 L30 10 L30 0 Z M22 2 L28 2 L28 8 L22 8 Z"/>
+        <rect x="40" width="10" height="10"/>
+      </svg>`);
+    expect(apart.plan().units.map((u) => u.kind)).toEqual(['batch']);
+    expect(batch(apart.plan().units[0]).sources).toHaveLength(3);
   });
 
   it('closes runs at group boundaries and text, and leaves single shapes as shapes', () => {

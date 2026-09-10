@@ -6,7 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## Unreleased
 
-Nothing yet.
+### Fixed
+
+- `svg-core`: style batching no longer fills the holes of merged outlines. Winding
+  normalization turned every subpath of a merged path the same way, which erased the counters
+  of text converted to outlines (the holes in A, B, O, ...) and the holes of rings whenever
+  several same-styled shapes were merged. Outlines whose subpaths wind both ways now keep their
+  direction and only merge with shapes they do not overlap; uniformly wound outlines are still
+  normalized. New `orientForMerge` helper; `splitSubpaths` starts a new subpath after a
+  closepath that is followed by a drawing command without a moveto, as renderers do.
+- Conformance: `text-outlines.svg` fixture (glyph outlines in both winding conventions, nested
+  counters, overlapping rings and squares) in the resvg round-trip.
 
 ## 0.3.0 - 2026-09-04
 

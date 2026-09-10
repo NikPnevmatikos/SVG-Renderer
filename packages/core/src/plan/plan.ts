@@ -14,7 +14,7 @@ import type {
 import { isConformal, isIdentity, scaleFactor } from '../geometry/matrix';
 import { pathBBox, shapeToPath, transformPathSegments } from '../geometry/path';
 import { expandRect, rectsIntersect, transformRect } from '../geometry/rect';
-import { normalizeWinding } from '../geometry/winding';
+import { orientForMerge } from '../geometry/winding';
 
 const MAX_OPEN_RUNS = 64;
 
@@ -24,20 +24,20 @@ interface Candidate {
   key: string;
   /** Uniform scale of the shape's local transform, applied to stroke metrics when flattening. */
   scale: number;
-  /** Shapes that both fill and stroke must not overlap each other inside one path. */
+  /**
+   * Nothing else in the same path may overlap this shape: fill-and-stroke shapes would paint
+   * their strokes across each other, and outlines whose subpaths wind both ways (glyph
+   * counters, rings) would cancel against a neighbour's winding and open holes.
+   */
   needsNoOverlap: boolean;
-  /** Filled shapes need consistent winding so the nonzero union is exact. */
-  normalizeWinding: boolean;
-  /** Outline in the parent group's space. */
-  path: PathSegment[];
+  /** Outline in the parent group's space, oriented for a nonzero union (see `orientForMerge`). */
+  path: readonly PathSegment[];
   /** Painted bounds in the parent group's space, stroke band included. */
   box: Rect;
 }
 
 interface OpenRun {
   key: string;
-  needsNoOverlap: boolean;
-  normalizeWinding: boolean;
   items: Candidate[];
   /** Paint order of the first shape; everything painted after it is what later members jump over. */
   slotOrder: number;
@@ -50,6 +50,8 @@ interface PaintedEntry {
   order: number;
   /** Style key of the run the shape belongs to, or `null` for shapes outside any run. */
   key: string | null;
+  /** Whether the shape may not share a path with anything it overlaps (see `Candidate`). */
+  needsNoOverlap: boolean;
 }
 
 const SAMPLE_SIZE = 64;
@@ -165,7 +167,7 @@ function round(value: number): string {
 }
 
 /** Bounds of a shape in its parent group's space, grown by the stroke band. */
-function paintedBox(node: ShapeNode, path?: PathSegment[]): Rect | null {
+function paintedBox(node: ShapeNode, path?: readonly PathSegment[]): Rect | null {
   const outline = path ?? (isIdentity(node.transform) ? shapeToPath(node) : transformPathSegments(shapeToPath(node), node.transform));
   const box = pathBBox(outline);
   if (!box) return null;
@@ -179,7 +181,9 @@ function paintedBox(node: ShapeNode, path?: PathSegment[]): Rect | null {
  * rendering could differ from separate rendering is excluded: translucency (overlaps
  * composite), even-odd fills (overlaps become holes), dashes (patterns restart per subpath
  * differently across renderers), paint servers (bounding-box dependent), clips/masks/filters,
- * non-scaling strokes, and strokes under non-uniform transforms.
+ * non-scaling strokes, and strokes under non-uniform transforms. Filled outlines are oriented
+ * for the nonzero union; those with counters keep their winding and merge only with shapes
+ * they do not overlap.
  */
 function candidate(node: ShapeNode): Candidate | null {
   const s = node.style;
@@ -199,7 +203,13 @@ function candidate(node: ShapeNode): Candidate | null {
   const scale = identity ? 1 : scaleFactor(node.transform);
 
   const local = shapeToPath(node);
-  const path = identity ? local : transformPathSegments(local, node.transform);
+  let path: readonly PathSegment[] = identity ? local : transformPathSegments(local, node.transform);
+  let mixedWinding = false;
+  if (hasFill) {
+    const oriented = orientForMerge(path);
+    path = oriented.path;
+    mixedWinding = oriented.mixed;
+  }
   const box = paintedBox(node, path);
   if (!box) return null;
 
@@ -213,8 +223,7 @@ function candidate(node: ShapeNode): Candidate | null {
     node,
     key: parts.join('|'),
     scale,
-    needsNoOverlap: hasFill && hasStroke,
-    normalizeWinding: hasFill,
+    needsNoOverlap: (hasFill && hasStroke) || mixedWinding,
     path,
     box,
   };
@@ -256,7 +265,7 @@ class Batcher {
       this.flushAll();
       return;
     }
-    this.painted.add({ box, order: this.order++, key: null });
+    this.painted.add({ box, order: this.order++, key: null, needsNoOverlap: false });
   }
 
   add(c: Candidate): void {
@@ -267,7 +276,7 @@ class Batcher {
         c.box,
         (entry) =>
           (entry.order > open.slotOrder && entry.key !== open.key) ||
-          (open.needsNoOverlap && entry.key === open.key && entry.order >= open.slotOrder)
+          (entry.key === open.key && entry.order >= open.slotOrder && (c.needsNoOverlap || entry.needsNoOverlap))
       );
       if (blocked) {
         this.flush(run);
@@ -279,8 +288,6 @@ class Batcher {
       if (this.runs.length >= MAX_OPEN_RUNS && oldest) this.flush(oldest);
       run = {
         key: c.key,
-        needsNoOverlap: c.needsNoOverlap,
-        normalizeWinding: c.normalizeWinding,
         items: [],
         slotOrder: this.order,
         slot: this.units.length,
@@ -289,7 +296,7 @@ class Batcher {
       this.runs.push(run);
     }
     run.items.push(c);
-    this.painted.add({ box: c.box, order: this.order++, key: c.key });
+    this.painted.add({ box: c.box, order: this.order++, key: c.key, needsNoOverlap: c.needsNoOverlap });
   }
 
   private flush(run: OpenRun): void {
@@ -301,11 +308,10 @@ class Batcher {
     if (run.items.length === 1) {
       unit = { kind: 'shape', node: first.node, interactive: false };
     } else {
-      let merged: PathSegment[] = [];
+      const merged: PathSegment[] = [];
       for (const item of run.items) {
         for (const segment of item.path) merged.push(segment);
       }
-      if (run.normalizeWinding) merged = normalizeWinding(merged);
       unit = {
         kind: 'batch',
         path: merged,

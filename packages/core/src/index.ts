@@ -97,7 +97,8 @@ export {
   chooseRenderRegion,
 } from './geometry/camera';
 export type { Camera, Size, RenderRegion, RenderRegionOptions } from './geometry/camera';
-export { normalizeWinding, reverseSubpath, splitSubpaths, subpathSignedArea } from './geometry/winding';
+export { normalizeWinding, orientForMerge, reverseSubpath, splitSubpaths, subpathSignedArea } from './geometry/winding';
+export type { MergeOrientation } from './geometry/winding';
 export { flattenPath } from './geometry/flatten';
 export {
   pointInPolygons,
