@@ -1,6 +1,6 @@
 {
   "name": "svg-renderer",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Fast, correct SVG rendering for React Native on top of react-native-svg and for React DOM (import from /web), plus a pan/zoom viewer (import from /viewer or /web) with taps resolved in SVG space, selection highlights, badges and built-in controls.",
   "author": "NikPnevmatikos",
   "license": "MIT",
@@ -83,7 +83,7 @@
     "react-native-reanimated": ">=3.6"
   },
   "dependencies": {
-    "svg-core": "^0.1.0"
+    "svg-core": "^0.1.1"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",

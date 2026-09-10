@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.3.1 - 2026-09-10
+
+svg-core 0.1.1 and svg-renderer 0.3.1.
+
 ### Fixed
 
 - `svg-core`: style batching no longer fills the holes of merged outlines. Winding
@@ -17,6 +23,10 @@ All notable changes to this project are documented here. The format follows
   closepath that is followed by a drawing command without a moveto, as renderers do.
 - Conformance: `text-outlines.svg` fixture (glyph outlines in both winding conventions, nested
   counters, overlapping rings and squares) in the resvg round-trip.
+
+### Changed
+
+- `svg-renderer`: requires `svg-core` ^0.1.1, so updating the renderer alone brings the fix.
 
 ## 0.3.0 - 2026-09-04
 

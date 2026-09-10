@@ -1,6 +1,6 @@
 {
   "name": "svg-core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Dependency-free SVG parser, normalizer, scene graph, render planner and geometry engine in TypeScript. Runs on React Native, web and Node.",
   "author": "NikPnevmatikos",
   "license": "MIT",
